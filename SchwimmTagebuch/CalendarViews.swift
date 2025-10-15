@@ -98,7 +98,7 @@ struct CompetitionCell: View {
                 Text(comp.bahn.titel).font(.subheadline)
             }
             HStack {
-                Text(comp.ort ?? "").font(.footnote)
+                Text(comp.ort).font(.footnote)
                 Spacer()
                 Text(comp.datum, style: .date).font(.footnote)
             }

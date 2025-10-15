@@ -11,7 +11,7 @@ struct CompetitionDetailView: View {
             Section("Veranstaltung") {
                 DatePicker("Datum", selection: $comp.datum, displayedComponents: .date)
                 TextField("Name", text: $comp.name)
-                TextField("Ort", text: Binding($comp.ort, default: ""))
+                TextField("Ort", text: $comp.ort)
                 Picker("Bahn", selection: $comp.bahn) {
                     ForEach(Bahn.allCases) { Text($0.titel).tag($0) }
                 }
@@ -36,6 +36,41 @@ struct CompetitionDetailView: View {
         .navigationTitle("Wettkampf")
         .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Speichern") { try? context.save() } } }
         .sheet(isPresented: $zeigtErgebnisEditor) { RaceResultEditorSheet(comp: comp) }
+    }
+}
+
+struct CompetitionEditorSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
+
+    @State private var datum = Date()
+    @State private var name = ""
+    @State private var ort = ""
+    @State private var bahn: Bahn = .scm25
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                DatePicker("Datum", selection: $datum, displayedComponents: .date)
+                TextField("Name", text: $name)
+                TextField("Ort", text: $ort)
+                Picker("Bahn", selection: $bahn) {
+                    ForEach(Bahn.allCases) { Text($0.titel).tag($0) }
+                }
+            }
+            .navigationTitle("Wettkampf erfassen")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("Speichern") { speichere() } }
+            }
+        }
+    }
+
+    private func speichere() {
+        let neu = Competition(datum: datum, name: name.isEmpty ? "Unbenannter Wettkampf" : name, ort: ort, bahn: bahn)
+        context.insert(neu)
+        try? context.save()
+        dismiss()
     }
 }
 

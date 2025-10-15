@@ -83,11 +83,11 @@ final class SetLap {
 final class Competition {
     var datum: Date
     var name: String
-    var ort: String?
+    var ort: String
     var bahn: Bahn
     @Relationship(deleteRule: .cascade) var results: [RaceResult] = []
 
-    init(datum: Date, name: String, ort: String? = nil, bahn: Bahn = .scm25) {
+    init(datum: Date, name: String, ort: String = "", bahn: Bahn = .scm25) {
         self.datum = datum
         self.name = name
         self.ort = ort
