@@ -11,7 +11,7 @@ struct CompetitionDetailView: View {
             Section("Veranstaltung") {
                 DatePicker("Datum", selection: $comp.datum, displayedComponents: .date)
                 TextField("Name", text: $comp.name)
-                TextField("Ort", text: Binding($comp.ort, default: ""))
+                TextField("Ort", text: $comp.ort)
                 Picker("Bahn", selection: $comp.bahn) {
                     ForEach(Bahn.allCases) { Text($0.titel).tag($0) }
                 }
