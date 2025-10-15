@@ -9,7 +9,7 @@ enum Zeit {
     }
 }
 
-extension Binding where Value == String? {
+extension Binding where Value == String {
     init(_ source: Binding<String?>, default defaultValue: String) {
         self.init(
             get: { source.wrappedValue ?? defaultValue },
