@@ -65,7 +65,7 @@ enum CSVBuilder {
         for c in comps {
             for r in c.results {
                 let date = df.string(from: c.datum)
-                let row = "\(date),\(c.name),\(escapeCSV(c.ort ?? "")),\(c.bahn.titel),\(r.lage.titel),\(r.distanz),\(r.zeitSek),\(r.platz ?? 0),\(r.istPB)"
+                let row = "\(date),\(c.name),\(escapeCSV(c.ort)),\(c.bahn.titel),\(r.lage.titel),\(r.distanz),\(r.zeitSek),\(r.platz ?? 0),\(r.istPB)"
                 lines.append(row)
             }
         }
@@ -99,7 +99,7 @@ enum JSONBuilder {
         }
         let comps: [C] = competitions.map { c in
             let rs: [R] = c.results.map { r in R(stroke: r.lage.titel, distance: r.distanz, timeSec: r.zeitSek, isPB: r.istPB) }
-            return C(date: df.string(from: c.datum), name: c.name, venue: c.ort ?? "", course: c.bahn.titel, results: rs)
+            return C(date: df.string(from: c.datum), name: c.name, venue: c.ort, course: c.bahn.titel, results: rs)
         }
         let root = Root(trainings: trainings, competitions: comps)
         let data = try! JSONEncoder().encode(root)
