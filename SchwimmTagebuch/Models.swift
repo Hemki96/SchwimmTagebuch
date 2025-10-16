@@ -52,7 +52,7 @@ final class WorkoutSet {
     var intervallSek: Int
     var equipment: [String]
     var kommentar: String?
-    @Relationship(inverse: \SetLap.set, deleteRule: .cascade) var laps: [SetLap] = []
+    @Relationship(deleteRule: .cascade, inverse: \SetLap.set) var laps: [SetLap] = []
     var session: TrainingSession?
 
     init(titel: String, wiederholungen: Int, distanzProWdh: Int, intervallSek: Int, equipment: [String] = [], kommentar: String? = nil, session: TrainingSession? = nil) {
