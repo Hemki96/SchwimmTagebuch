@@ -16,57 +16,112 @@ struct LoginView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Anmeldung") {
-                    TextField("E-Mail", text: $email)
-                        .textContentType(.username)
-                        .keyboardType(.emailAddress)
-                        .autocapitalization(.none)
-                        .autocorrectionDisabled()
-                        .focused($focusedField, equals: .email)
-                    SecureField("Passwort", text: $password)
-                        .textContentType(.password)
-                        .focused($focusedField, equals: .password)
-                    if let errorMessage {
-                        Text(errorMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 28) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Willkommen zurück")
+                            .font(.largeTitle.bold())
+                        Text("Melde dich an, um dein Schwimmtraining im Blick zu behalten.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
                     }
-                }
 
-                Section {
-                    Button(action: attemptLogin) {
-                        Label("Anmelden", systemImage: "lock.open")
+                    VStack(alignment: .leading, spacing: 16) {
+                        SectionHeaderLabel("Anmeldedaten", systemImage: "envelope")
+                        TextField("E-Mail", text: $email)
+                            .textContentType(.username)
+                            .keyboardType(.emailAddress)
+                            .autocapitalization(.none)
+                            .autocorrectionDisabled()
+                            .focused($focusedField, equals: .email)
+                            .textFieldStyle(.roundedBorder)
+                            .submitLabel(.next)
+                        SecureField("Passwort", text: $password)
+                            .textContentType(.password)
+                            .focused($focusedField, equals: .password)
+                            .textFieldStyle(.roundedBorder)
+                            .submitLabel(.go)
+                        if let errorMessage {
+                            Text(errorMessage)
+                                .font(.footnote)
+                                .foregroundStyle(.red)
+                                .transition(.opacity)
+                        }
                     }
-                    .disabled(email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || password.isEmpty)
+                    .glassCard()
+                    .tint(AppTheme.accent)
 
-                    Button(role: .none) {
-                        onRegisterRequested()
-                    } label: {
-                        Label("Neues Konto anlegen", systemImage: "person.badge.plus")
+                    VStack(spacing: 12) {
+                        Button(action: attemptLogin) {
+                            Label("Anmelden", systemImage: "lock.open")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || password.isEmpty)
+                        .tint(AppTheme.accent)
+
+                        Button(role: .none) {
+                            onRegisterRequested()
+                        } label: {
+                            Label("Neues Konto anlegen", systemImage: "person.badge.plus")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
                     }
-                }
+                    .glassCard()
+                    .tint(AppTheme.accent)
 
-                if !users.isEmpty {
-                    Section("Vorhandene Benutzer") {
-                        ForEach(users) { user in
-                            Button {
-                                email = user.email
-                                focusedField = .password
-                            } label: {
-                                VStack(alignment: .leading) {
-                                    Text(user.displayName)
-                                    Text(user.email)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                    if !users.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            SectionHeaderLabel("Vorhandene Benutzer", systemImage: "person.3")
+                            ForEach(users) { user in
+                                Button {
+                                    email = user.email
+                                    focusedField = .password
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(user.displayName)
+                                            .font(.body.weight(.semibold))
+                                        Text(user.email)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                                 }
+                                .buttonStyle(.plain)
+                                .padding(12)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .fill(AppTheme.cardMaterial)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                                .stroke(AppTheme.glassStroke.opacity(0.7), lineWidth: 1)
+                                        )
+                                )
                             }
                         }
+                        .glassCard()
+                        .tint(AppTheme.accent)
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 40)
+                .onSubmit {
+                    switch focusedField {
+                    case .email:
+                        focusedField = .password
+                    default:
+                        attemptLogin()
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Anmelden")
         }
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarBackground(AppTheme.barMaterial, for: .navigationBar)
+        .toolbarColorScheme(.light, for: .navigationBar)
+        .appSurfaceBackground()
     }
 
     private func attemptLogin() {
@@ -119,43 +174,92 @@ struct RegistrationView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Profil") {
-                    TextField("Anzeigename", text: $displayName)
-                        .textContentType(.name)
-                        .focused($focusedField, equals: .name)
-                    TextField("E-Mail", text: $email)
-                        .textContentType(.username)
-                        .keyboardType(.emailAddress)
-                        .autocapitalization(.none)
-                        .autocorrectionDisabled()
-                        .focused($focusedField, equals: .email)
-                }
-
-                Section("Sicherheit") {
-                    SecureField("Passwort", text: $password)
-                        .textContentType(.newPassword)
-                        .focused($focusedField, equals: .password)
-                    SecureField("Passwort bestätigen", text: $confirmPassword)
-                        .textContentType(.newPassword)
-                        .focused($focusedField, equals: .confirm)
-                    if let errorMessage {
-                        Text(errorMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 28) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Neues Konto")
+                            .font(.largeTitle.bold())
+                        Text("Erstelle ein Profil, um deine Wettkämpfe und Trainings zu synchronisieren.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
                     }
-                }
 
-                Section {
-                    Button(action: attemptRegistration) {
-                        Label("Registrieren", systemImage: "checkmark.seal")
+                    VStack(alignment: .leading, spacing: 16) {
+                        SectionHeaderLabel("Profil", systemImage: "person.crop.circle")
+                        TextField("Anzeigename", text: $displayName)
+                            .textContentType(.name)
+                            .focused($focusedField, equals: .name)
+                            .textFieldStyle(.roundedBorder)
+                            .submitLabel(.next)
+                        TextField("E-Mail", text: $email)
+                            .textContentType(.username)
+                            .keyboardType(.emailAddress)
+                            .autocapitalization(.none)
+                            .autocorrectionDisabled()
+                            .focused($focusedField, equals: .email)
+                            .textFieldStyle(.roundedBorder)
+                            .submitLabel(.next)
                     }
-                    .disabled(!canRegister)
+                    .glassCard()
+                    .tint(AppTheme.accent)
+
+                    VStack(alignment: .leading, spacing: 16) {
+                        SectionHeaderLabel("Sicherheit", systemImage: "lock")
+                        SecureField("Passwort", text: $password)
+                            .textContentType(.newPassword)
+                            .focused($focusedField, equals: .password)
+                            .textFieldStyle(.roundedBorder)
+                            .submitLabel(.next)
+                        SecureField("Passwort bestätigen", text: $confirmPassword)
+                            .textContentType(.newPassword)
+                            .focused($focusedField, equals: .confirm)
+                            .textFieldStyle(.roundedBorder)
+                            .submitLabel(.go)
+                        if let errorMessage {
+                            Text(errorMessage)
+                                .font(.footnote)
+                                .foregroundStyle(.red)
+                                .transition(.opacity)
+                        }
+                    }
+                    .glassCard()
+                    .tint(AppTheme.accent)
+
+                    VStack(spacing: 12) {
+                        Button(action: attemptRegistration) {
+                            Label("Registrieren", systemImage: "checkmark.seal")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(AppTheme.accent)
+                        .disabled(!canRegister)
+                    }
+                    .glassCard()
+                    .tint(AppTheme.accent)
+                }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 40)
+                .onSubmit {
+                    switch focusedField {
+                    case .name:
+                        focusedField = .email
+                    case .email:
+                        focusedField = .password
+                    case .password:
+                        focusedField = .confirm
+                    default:
+                        if canRegister { attemptRegistration() }
+                    }
                 }
             }
             .navigationTitle("Konto erstellen")
+            .scrollDismissesKeyboard(.interactively)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } } }
         }
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarBackground(AppTheme.barMaterial, for: .navigationBar)
+        .toolbarColorScheme(.light, for: .navigationBar)
+        .appSurfaceBackground()
     }
 
     private var canRegister: Bool {

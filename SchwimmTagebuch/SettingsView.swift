@@ -40,106 +40,145 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Benutzer") {
-                    if let user = currentUser {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(user.displayName)
-                                .font(.headline)
-                            Text(user.email)
-                                .font(.caption)
+            ScrollView {
+                LazyVStack(spacing: 24) {
+                    SettingsSection(title: "Benutzer", systemImage: "person.circle") {
+                        if let user = currentUser {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(user.displayName)
+                                    .font(.title3.weight(.semibold))
+                                Text(user.email)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                            if let logoutAction {
+                                Button(role: .destructive, action: logoutAction) {
+                                    Label("Abmelden", systemImage: "rectangle.portrait.and.arrow.right")
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.red.opacity(0.8))
+                            }
+                        } else {
+                            Text("Kein Benutzer angemeldet")
                                 .foregroundStyle(.secondary)
                         }
-                        if let logoutAction {
-                            Button("Abmelden", role: .destructive, action: logoutAction)
-                        }
-                    } else {
-                        Text("Kein Benutzer angemeldet")
-                            .foregroundStyle(.secondary)
                     }
-                }
-                Section("Profil & Ziele") {
-                    Toggle("Ziel-Tracking aktiv", isOn: $goalTrackingEnabled)
-                    if goalTrackingEnabled {
-                        Stepper(value: $weeklyGoal, in: 1000...100_000, step: 500) {
-                            Text("Wöchentliches Ziel: \(weeklyGoal.formatted()) m")
-                        }
-                        Toggle("Wöchentliche Erinnerung", isOn: $reminderEnabled)
-                        if reminderEnabled {
-                            Picker("Erinnerungstag", selection: reminderWeekday) {
-                                ForEach(Weekday.allCases) { day in
-                                    Text(day.titel).tag(day)
+
+                    SettingsSection(title: "Profil & Ziele", systemImage: "target") {
+                        Toggle("Ziel-Tracking aktiv", isOn: $goalTrackingEnabled)
+                        if goalTrackingEnabled {
+                            Divider()
+                            Stepper(value: $weeklyGoal, in: 1000...100_000, step: 500) {
+                                Text("Wöchentliches Ziel: \(weeklyGoal.formatted()) m")
+                                    .font(.body.weight(.semibold))
+                            }
+                            Divider()
+                            Toggle("Wöchentliche Erinnerung", isOn: $reminderEnabled)
+                            if reminderEnabled {
+                                Picker("Erinnerungstag", selection: reminderWeekday) {
+                                    ForEach(Weekday.allCases) { day in
+                                        Text(day.titel).tag(day)
+                                    }
                                 }
+                                .pickerStyle(.segmented)
                             }
                         }
                     }
-                }
-                Section("Trainings-Defaults") {
-                    Stepper(value: $defaultSessionMeters, in: 500...20_000, step: 250) {
-                        Text("Standardumfang: \(defaultSessionMeters) m")
-                    }
-                    Stepper(value: $defaultSessionDuration, in: 10...240, step: 5) {
-                        Text("Standarddauer: \(defaultSessionDuration) min")
-                    }
-                    Stepper(value: $defaultSessionBorg, in: 1...10) {
-                        Text("Standard-Borg: \(defaultSessionBorg)")
-                    }
-                    Picker("Standard-Ort", selection: $defaultSessionOrtRaw) {
-                        ForEach(Ort.allCases) { ort in
-                            Text(ort.titel).tag(ort.rawValue)
+
+                    SettingsSection(title: "Trainings-Defaults", systemImage: "figure.pool.swim") {
+                        Stepper(value: $defaultSessionMeters, in: 500...20_000, step: 250) {
+                            Text("Standardumfang: \(defaultSessionMeters) m")
+                                .font(.body.weight(.semibold))
                         }
-                    }
-                }
-                Section("Darstellung") {
-                    Toggle("Equipment & Technik im Überblick zeigen", isOn: $showEquipmentBadges)
-                    Text("Liquid-Glass-Effekt ist aktiv (Platzhalter-Material).")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Section("Export & Synchronisation") {
-                    Toggle("Automatische Sicherung aktivieren", isOn: $autoExportEnabled)
-                    Picker("Exportformat", selection: $autoExportFormatRaw) {
-                        ForEach(ExportFormat.allCases) { format in
-                            Text(format.titel).tag(format.rawValue)
+                        Divider()
+                        Stepper(value: $defaultSessionDuration, in: 10...240, step: 5) {
+                            Text("Standarddauer: \(defaultSessionDuration) min")
+                                .font(.body.weight(.semibold))
                         }
+                        Divider()
+                        Stepper(value: $defaultSessionBorg, in: 1...10) {
+                            Text("Standard-Borg: \(defaultSessionBorg)")
+                                .font(.body.weight(.semibold))
+                        }
+                        Divider()
+                        Picker("Standard-Ort", selection: $defaultSessionOrtRaw) {
+                            ForEach(Ort.allCases) { ort in
+                                Text(ort.titel).tag(ort.rawValue)
+                            }
+                        }
+                        .pickerStyle(.menu)
                     }
-                    Text(autoExportFormat.beschreibung)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Button {
-                        starteBackup()
-                    } label: {
-                        Label("Backup jetzt erstellen", systemImage: "externaldrive")
+
+                    SettingsSection(title: "Darstellung", systemImage: "sparkles.rectangle.stack") {
+                        Toggle("Equipment & Technik im Überblick zeigen", isOn: $showEquipmentBadges)
+                        Text("Liquid-Glass-Effekt ist aktiv und folgt dem neuen iOS 26-Design.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
-                    .disabled(userSessions.isEmpty && userCompetitions.isEmpty)
-                    Text("Letzte Sicherung: \(lastBackupDescription)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+
+                    SettingsSection(title: "Export & Synchronisation", systemImage: "arrow.triangle.2.circlepath") {
+                        Toggle("Automatische Sicherung aktivieren", isOn: $autoExportEnabled)
+                        Divider()
+                        Picker("Exportformat", selection: $autoExportFormatRaw) {
+                            ForEach(ExportFormat.allCases) { format in
+                                Text(format.titel).tag(format.rawValue)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        Text(autoExportFormat.beschreibung)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        Divider()
+                        Button {
+                            starteBackup()
+                        } label: {
+                            Label("Backup jetzt erstellen", systemImage: "externaldrive")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(userSessions.isEmpty && userCompetitions.isEmpty)
+                        .tint(AppTheme.accent)
+                        Text("Letzte Sicherung: \(lastBackupDescription)")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    SettingsSection(title: "Datenverwaltung", systemImage: "trash") {
+                        Button(role: .destructive) {
+                            zeigtResetAlert = true
+                        } label: {
+                            Label("Alle Daten löschen", systemImage: "trash")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.red)
+                    }
                 }
-                Section("Daten") {
-                    Button(role: .destructive) { zeigtResetAlert = true } label: { Text("Alle Daten löschen") }
-                }
-            }
-            .alert("Alle Daten löschen?", isPresented: $zeigtResetAlert) {
-                Button("Abbrechen", role: .cancel) {}
-                Button("Löschen", role: .destructive) { resetData() }
-            } message: {
-                Text("Dies kann nicht rückgängig gemacht werden.")
-            }
-            .sheet(isPresented: $zeigtShareSheet) {
-                if let backupURL {
-                    ShareSheet(activityItems: [backupURL])
-                }
-            }
-            .alert("Backup fehlgeschlagen", isPresented: $zeigtBackupFehler) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(backupFehlerText)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 28)
             }
         }
         .navigationTitle("Einstellungen")
         .toolbarBackground(.visible, for: .navigationBar)
-        .toolbarBackground(Material.liquidGlass, for: .navigationBar)
+        .toolbarBackground(AppTheme.barMaterial, for: .navigationBar)
+        .toolbarColorScheme(.light, for: .navigationBar)
+        .appSurfaceBackground()
+        .alert("Alle Daten löschen?", isPresented: $zeigtResetAlert) {
+            Button("Abbrechen", role: .cancel) {}
+            Button("Löschen", role: .destructive) { resetData() }
+        } message: {
+            Text("Dies kann nicht rückgängig gemacht werden.")
+        }
+        .sheet(isPresented: $zeigtShareSheet) {
+            if let backupURL {
+                ShareSheet(activityItems: [backupURL])
+            }
+        }
+        .alert("Backup fehlgeschlagen", isPresented: $zeigtBackupFehler) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(backupFehlerText)
+        }
     }
 
     private func resetData() {
@@ -170,5 +209,28 @@ struct SettingsView: View {
     private var userCompetitions: [Competition] {
         guard let userID = currentUser?.id else { return [] }
         return competitions.filter { $0.owner?.id == userID }
+    }
+}
+
+private struct SettingsSection<Content: View>: View {
+    let title: String
+    let systemImage: String
+    @ViewBuilder var content: Content
+
+    init(title: String, systemImage: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.systemImage = systemImage
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            SectionHeaderLabel(title, systemImage: systemImage)
+            VStack(alignment: .leading, spacing: 16) {
+                content
+            }
+        }
+        .glassCard()
+        .tint(AppTheme.accent)
     }
 }
