@@ -7,7 +7,7 @@ final class TrainingSession {
     var datum: Date
     var gesamtMeter: Int
     var gesamtDauerSek: Int
-    var borgWert: Int
+    var borgWert: Int = 5
     var intensitaet: Intensitaet?
     var notizen: String?
     var ort: Ort
@@ -19,11 +19,15 @@ final class TrainingSession {
         self.datum = datum
         self.gesamtMeter = meter
         self.gesamtDauerSek = dauerSek
-        self.borgWert = min(10, max(1, borgWert))
+        self.borgWert = Self.clampBorg(borgWert)
         self.notizen = notizen
         self.ort = ort
         self.gefuehl = gefuehl
         self.intensitaet = nil
+    }
+
+    private static func clampBorg(_ value: Int) -> Int {
+        max(1, min(10, value))
     }
 }
 
