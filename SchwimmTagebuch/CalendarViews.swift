@@ -5,38 +5,78 @@ struct CalendarView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \TrainingSession.datum, order: .reverse) private var sessions: [TrainingSession]
     @Query(sort: \Competition.datum, order: .reverse) private var competitions: [Competition]
+    @State private var selectedDate = Calendar.current.startOfDay(for: Date())
     @State private var zeigtTrainingEditor = false
     @State private var zeigtWettkampfEditor = false
+    @State private var hatInitialCheckAusgefuehrt = false
+
+    private var kalender: Calendar { Calendar.current }
+
+    private var selectedDateBinding: Binding<Date> {
+        Binding(
+            get: { selectedDate },
+            set: { newValue in
+                let normalisiert = kalender.startOfDay(for: newValue)
+                selectedDate = normalisiert
+                stelleTrainingseinheitSicher(fuer: normalisiert)
+            }
+        )
+    }
+
+    private var trainingsAmTag: [TrainingSession] {
+        sessions.filter { kalender.isDate($0.datum, inSameDayAs: selectedDate) }
+    }
+
+    private var wettkaempfeAmTag: [Competition] {
+        competitions.filter { kalender.isDate($0.datum, inSameDayAs: selectedDate) }
+    }
 
     var body: some View {
         NavigationStack {
             List {
-                if !sessions.isEmpty {
-                    Section("Training") {
-                        ForEach(sessions) { s in
+                Section {
+                    DatePicker("Datum auswählen", selection: selectedDateBinding, displayedComponents: .date)
+                        .datePickerStyle(.graphical)
+                        .labelsHidden()
+                }
+
+                Section("Training") {
+                    if trainingsAmTag.isEmpty {
+                        Text("Keine Trainingseinheiten für diesen Tag.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(trainingsAmTag) { session in
                             NavigationLink {
-                                SessionDetailView(session: s)
+                                SessionDetailView(session: session)
                             } label: {
-                                TrainingCell(session: s)
+                                TrainingCell(session: session)
                             }
-                        }.onDelete(perform: loescheTraining)
+                        }
+                        .onDelete { offsets in
+                            loescheTraining(at: offsets, aus: trainingsAmTag)
+                        }
                     }
                 }
-                if !competitions.isEmpty {
-                    Section("Wettkämpfe") {
-                        ForEach(competitions) { c in
+
+                Section("Wettkämpfe") {
+                    if wettkaempfeAmTag.isEmpty {
+                        Text("Keine Wettkämpfe für diesen Tag.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(wettkaempfeAmTag) { wettkampf in
                             NavigationLink {
-                                CompetitionDetailView(comp: c)
+                                CompetitionDetailView(comp: wettkampf)
                             } label: {
-                                CompetitionCell(comp: c)
+                                CompetitionCell(comp: wettkampf)
                             }
-                        }.onDelete(perform: loescheWettkampf)
+                        }
+                        .onDelete { offsets in
+                            loescheWettkampf(at: offsets, aus: wettkaempfeAmTag)
+                        }
                     }
-                }
-                if sessions.isEmpty && competitions.isEmpty {
-                    ContentUnavailableView("Noch keine Einträge", systemImage: "calendar.badge.plus", description: Text("Lege Training oder Wettkämpfe an."))
                 }
             }
+            .listStyle(.insetGrouped)
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Menu {
@@ -47,20 +87,36 @@ struct CalendarView: View {
                     }
                 }
             }
-            .sheet(isPresented: $zeigtTrainingEditor) { SessionEditorSheet() }
-            .sheet(isPresented: $zeigtWettkampfEditor) { CompetitionEditorSheet() }
+            .sheet(isPresented: $zeigtTrainingEditor) { SessionEditorSheet(initialDate: selectedDate) }
+            .sheet(isPresented: $zeigtWettkampfEditor) { CompetitionEditorSheet(initialDate: selectedDate) }
         }
         .navigationTitle("Kalender")
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarBackground(Material.liquidGlass, for: .navigationBar)
+        .onAppear {
+            if !hatInitialCheckAusgefuehrt {
+                hatInitialCheckAusgefuehrt = true
+                stelleTrainingseinheitSicher(fuer: selectedDate)
+            }
+        }
     }
 
-    private func loescheTraining(at offsets: IndexSet) {
-        for i in offsets { context.delete(sessions[i]) }
+    private func stelleTrainingseinheitSicher(fuer datum: Date) {
+        guard !sessions.contains(where: { kalender.isDate($0.datum, inSameDayAs: datum) }) else { return }
+        let neueSession = TrainingSession(datum: datum, meter: 0, dauerSek: 0, intensitaet: .locker)
+        context.insert(neueSession)
         try? context.save()
     }
-    private func loescheWettkampf(at offsets: IndexSet) {
-        for i in offsets { context.delete(competitions[i]) }
+
+    private func loescheTraining(at offsets: IndexSet, aus liste: [TrainingSession]) {
+        let zuLoeschen = offsets.map { liste[$0] }
+        zuLoeschen.forEach(context.delete)
+        try? context.save()
+    }
+
+    private func loescheWettkampf(at offsets: IndexSet, aus liste: [Competition]) {
+        let zuLoeschen = offsets.map { liste[$0] }
+        zuLoeschen.forEach(context.delete)
         try? context.save()
     }
 }

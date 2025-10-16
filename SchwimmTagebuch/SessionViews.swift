@@ -82,12 +82,16 @@ struct SetDetailView: View {
 struct SessionEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
-    @State private var datum = Date()
+    @State private var datum: Date
     @State private var meter = 3000
     @State private var dauerMin = 60
     @State private var intens: Intensitaet = .schwelle
     @State private var ort: Ort = .becken
     @State private var notizen = ""
+
+    init(initialDate: Date = Date()) {
+        _datum = State(initialValue: initialDate)
+    }
 
     var body: some View {
         NavigationStack {
