@@ -8,6 +8,7 @@ final class TrainingSession {
     var gesamtMeter: Int
     var gesamtDauerSek: Int
     var borgWert: Int
+    var intensitaet: Intensitaet?
     var notizen: String?
     var ort: Ort
     var gefuehl: String?
@@ -22,6 +23,22 @@ final class TrainingSession {
         self.notizen = notizen
         self.ort = ort
         self.gefuehl = gefuehl
+        self.intensitaet = nil
+    }
+}
+
+enum Intensitaet: String, Codable, CaseIterable, Identifiable {
+    case locker, aerob, schwelle, vo2, sprint, regenerativ
+    var id: String { rawValue }
+    var titel: String {
+        switch self {
+        case .locker: return "Locker"
+        case .aerob: return "Aerob"
+        case .schwelle: return "Schwelle"
+        case .vo2: return "VO2max"
+        case .sprint: return "Sprint"
+        case .regenerativ: return "Regenerativ"
+        }
     }
 }
 
