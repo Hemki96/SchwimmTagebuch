@@ -82,10 +82,10 @@ struct LoginView: View {
             return
         }
 
-        let descriptor = FetchDescriptor<AppUser>(
-            predicate: #Predicate { $0.email == normalizedEmail },
-            fetchLimit: 1
+        var descriptor = FetchDescriptor<AppUser>(
+            predicate: #Predicate<AppUser> { $0.email == normalizedEmail }
         )
+        descriptor.fetchLimit = 1
 
         do {
             if let user = try context.fetch(descriptor).first,
@@ -182,10 +182,10 @@ struct RegistrationView: View {
             return
         }
 
-        let descriptor = FetchDescriptor<AppUser>(
-            predicate: #Predicate { $0.email == normalizedEmail },
-            fetchLimit: 1
+        var descriptor = FetchDescriptor<AppUser>(
+            predicate: #Predicate<AppUser> { $0.email == normalizedEmail }
         )
+        descriptor.fetchLimit = 1
 
         do {
             if try context.fetch(descriptor).first != nil {

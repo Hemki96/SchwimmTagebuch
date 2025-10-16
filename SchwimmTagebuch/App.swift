@@ -70,10 +70,10 @@ struct RootView: View {
         guard isLoading else { return }
         defer { isLoading = false }
         guard let id = UUID(uuidString: storedUserID), !storedUserID.isEmpty else { return }
-        let descriptor = FetchDescriptor<AppUser>(
-            predicate: #Predicate { $0.id == id },
-            fetchLimit: 1
+        var descriptor = FetchDescriptor<AppUser>(
+            predicate: #Predicate<AppUser> { $0.id == id }
         )
+        descriptor.fetchLimit = 1
         if let found = try? context.fetch(descriptor).first {
             currentUser = found
         } else {
