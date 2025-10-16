@@ -43,10 +43,14 @@ struct CompetitionEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
 
-    @State private var datum = Date()
+    @State private var datum: Date
     @State private var name = ""
     @State private var ort = ""
     @State private var bahn: Bahn = .scm25
+
+    init(initialDate: Date = Date()) {
+        _datum = State(initialValue: initialDate)
+    }
 
     var body: some View {
         NavigationStack {
