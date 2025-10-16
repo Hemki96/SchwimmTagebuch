@@ -65,17 +65,18 @@ struct StatsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
+                LazyVStack(spacing: 24) {
                     if goalTrackingEnabled {
-                        Card("Wochenziel") {
+                        Card("Wochenziel", systemImage: "target") {
                             if let letzte = wochen.last {
                                 let progress = min(1.0, Double(letzte.meter) / Double(max(weeklyGoal, 1)))
                                 VStack(alignment: .leading, spacing: 12) {
                                     Text("Aktuelle Woche: \(letzte.meter) m von \(weeklyGoal) m")
+                                        .font(.subheadline.weight(.semibold))
                                     ProgressView(value: progress) {
                                         Text("Fortschritt")
                                     }
-                                    .tint(.teal)
+                                    .tint(AppTheme.accent)
                                     Text("\(Int(progress * 100)) % erreicht")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
@@ -86,21 +87,30 @@ struct StatsView: View {
                             }
                         }
                     }
-                    Card("Wochenmeter") {
+                    Card("Wochenmeter", systemImage: "chart.bar") {
                         Chart(wochen) { w in
                             BarMark(x: .value("Woche", w.wochenStart, unit: .weekOfYear), y: .value("Meter", w.meter))
                         }
+                        .chartXAxis {
+                            AxisMarks(values: .stride(by: .weekOfYear))
+                        }
                         .frame(height: 220)
                     }
-                    Card("Borg-Intensität je Woche") {
+                    Card("Borg-Intensität je Woche", systemImage: "heart.text.square") {
                         if wochen.isEmpty {
                             Text("Keine Daten")
+                                .foregroundStyle(.secondary)
                         } else {
                             Chart(wochen) { w in
                                 LineMark(
                                     x: .value("Woche", w.wochenStart, unit: .weekOfYear),
                                     y: .value("Ø Borg", w.durchschnittBorg)
                                 )
+                                AreaMark(
+                                    x: .value("Woche", w.wochenStart, unit: .weekOfYear),
+                                    y: .value("Ø Borg", w.durchschnittBorg)
+                                )
+                                .foregroundStyle(Gradient(colors: [AppTheme.accent.opacity(0.4), .clear]))
                                 PointMark(
                                     x: .value("Woche", w.wochenStart, unit: .weekOfYear),
                                     y: .value("Ø Borg", w.durchschnittBorg)
@@ -109,7 +119,7 @@ struct StatsView: View {
                             .frame(height: 220)
                         }
                     }
-                    Card("Letzte Woche im Blick") {
+                    Card("Letzte Woche im Blick", systemImage: "figure.swim") {
                         if let letzte = wochen.last {
                             VStack(alignment: .leading, spacing: 12) {
                                 HStack {
@@ -122,9 +132,10 @@ struct StatsView: View {
                             }
                         } else {
                             Text("Noch keine Trainingseinheiten erfasst.")
+                                .foregroundStyle(.secondary)
                         }
                     }
-                    Card("Equipment-Fokus") {
+                    Card("Equipment-Fokus", systemImage: "tuningfork") {
                         if equipmentStats.isEmpty {
                             Text("Noch keine Equipment-Daten erfasst.")
                                 .foregroundStyle(.secondary)
@@ -134,12 +145,12 @@ struct StatsView: View {
                                     x: .value("Einsätze", item.count),
                                     y: .value("Equipment", item.equipment.titel)
                                 )
-                                .foregroundStyle(.blue.gradient)
+                                .foregroundStyle(AppTheme.accent.gradient)
                             }
                             .frame(height: max(160, CGFloat(equipmentStats.count) * 32))
                         }
                     }
-                    Card("Technik-Schwerpunkte") {
+                    Card("Technik-Schwerpunkte", systemImage: "waveform.path.ecg") {
                         if techniqueStats.isEmpty {
                             Text("Noch keine Technik-Fokusse erfasst.")
                                 .foregroundStyle(.secondary)
@@ -153,19 +164,23 @@ struct StatsView: View {
                                     x: .value("Fokus", item.focus.titel),
                                     y: .value("Anzahl", item.count)
                                 )
-                                .foregroundStyle(.teal)
+                                .foregroundStyle(AppTheme.accent)
                             }
                             .frame(height: 220)
                         }
                     }
                     ExportSection()
+                        .padding(.bottom, 12)
                 }
-                .padding()
+                .padding(.horizontal, 20)
+                .padding(.vertical, 28)
             }
         }
         .navigationTitle("Statistiken")
         .toolbarBackground(.visible, for: .navigationBar)
-        .toolbarBackground(Material.liquidGlass, for: .navigationBar)
+        .toolbarBackground(AppTheme.barMaterial, for: .navigationBar)
+        .toolbarColorScheme(.light, for: .navigationBar)
+        .appSurfaceBackground()
     }
 
     private var filteredSessions: [TrainingSession] {
@@ -174,23 +189,31 @@ struct StatsView: View {
     }
 }
 
-// Re-usable Liquid-Card
+// Re-usable glass card following the refreshed visual language.
 struct Card<Content: View>: View {
-    let titel: String
+    let title: String
+    let systemImage: String?
     @ViewBuilder var content: Content
-    init(_ titel: String, @ViewBuilder content: () -> Content) {
-        self.titel = titel
+
+    init(_ title: String, systemImage: String? = nil, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.systemImage = systemImage
         self.content = content()
     }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(titel).font(.headline)
+        VStack(alignment: .leading, spacing: 16) {
+            if let systemImage {
+                Label(title, systemImage: systemImage)
+                    .font(.title3.weight(.semibold))
+                    .labelStyle(.titleAndIcon)
+                    .foregroundStyle(.primary)
+            } else {
+                Text(title)
+                    .font(.title3.weight(.semibold))
+            }
             content
         }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Material.liquidGlass)
-        )
+        .glassCard()
     }
 }

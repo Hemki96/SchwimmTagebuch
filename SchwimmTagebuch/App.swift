@@ -1,3 +1,6 @@
+#if canImport(UIKit)
+import UIKit
+#endif
 import SwiftUI
 import SwiftData
 
@@ -23,6 +26,7 @@ struct SchwimmTagebuchApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                .tint(AppTheme.accent)
                 .environment(\.locale, Locale(identifier: "de"))
         }
         .modelContainer(sharedContainer)
@@ -49,21 +53,35 @@ struct RootView: View {
     @State private var showsRegistration = false
 
     var body: some View {
-        Group {
-            if isLoading {
-                ProgressView("Benutzer wird geladen…")
-            } else if let user = currentUser {
-                MainTabView()
-                    .environment(\.currentUser, user)
-                    .environment(\.logoutAction, logout)
-            } else {
-                LoginView(onLogin: handleLogin, onRegisterRequested: { showsRegistration = true })
-                    .sheet(isPresented: $showsRegistration) {
-                        RegistrationView(onRegister: handleLogin)
+        ZStack {
+            AppGradientBackground()
+
+            Group {
+                if isLoading {
+                    ProgressView {
+                        Text("Benutzer wird geladen…")
+                            .font(.headline)
                     }
+                    .progressViewStyle(.circular)
+                    .glassCard()
+                } else if let user = currentUser {
+                    MainTabView()
+                        .environment(\.currentUser, user)
+                        .environment(\.logoutAction, logout)
+                        .transition(.opacity.combined(with: .scale))
+                } else {
+                    LoginView(onLogin: handleLogin, onRegisterRequested: { showsRegistration = true })
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .sheet(isPresented: $showsRegistration) {
+                            RegistrationView(onRegister: handleLogin)
+                                .presentationDetents([.medium, .large])
+                        }
+                }
             }
         }
         .task { await loadStoredUser() }
+        .animation(.spring(response: 0.6, dampingFraction: 0.85), value: currentUser?.id)
+        .animation(.easeInOut(duration: 0.3), value: isLoading)
     }
 
     private func loadStoredUser() async {
@@ -97,6 +115,22 @@ struct RootView: View {
 }
 
 struct MainTabView: View {
+    init() {
+        #if canImport(UIKit)
+        let appearance = UITabBarAppearance()
+        appearance.configureWithTransparentBackground()
+        appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
+        appearance.backgroundColor = .clear
+        appearance.stackedLayoutAppearance.selected.iconColor = UIColor(AppTheme.accent)
+        appearance.inlineLayoutAppearance.selected.iconColor = UIColor(AppTheme.accent)
+        appearance.compactInlineLayoutAppearance.selected.iconColor = UIColor(AppTheme.accent)
+        UITabBar.appearance().standardAppearance = appearance
+        UITabBar.appearance().scrollEdgeAppearance = appearance
+        UITabBar.appearance().tintColor = UIColor(AppTheme.accent)
+        UITabBar.appearance().unselectedItemTintColor = UIColor(white: 1.0, alpha: 0.75)
+        #endif
+    }
+
     var body: some View {
         TabView {
             CalendarView()
@@ -106,7 +140,9 @@ struct MainTabView: View {
             SettingsView()
                 .tabItem { Label("Einstellungen", systemImage: "gearshape") }
         }
+        .tint(AppTheme.accent)
         .modifier(LiquidTabBackground())
+        .background(AppGradientBackground().ignoresSafeArea())
     }
 }
 
@@ -114,6 +150,7 @@ struct LiquidTabBackground: ViewModifier {
     func body(content: Content) -> some View {
         content
             .toolbarBackground(.visible, for: .tabBar)
-            .toolbarBackground(.ultraThinMaterial, for: .tabBar)
+            .toolbarBackground(AppTheme.barMaterial, for: .tabBar)
+            .toolbarColorScheme(.light, for: .tabBar)
     }
 }

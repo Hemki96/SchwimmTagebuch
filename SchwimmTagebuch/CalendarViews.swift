@@ -61,8 +61,8 @@ struct CalendarView: View {
         NavigationStack {
             List {
                 if let woche = aktuelleWochenStatistik {
-                    Section("Aktuelle Woche") {
-                        VStack(alignment: .leading, spacing: 8) {
+                    Section {
+                        VStack(alignment: .leading, spacing: 12) {
                             HStack {
                                 Label("\(woche.meter) m", systemImage: "ruler")
                                 Spacer()
@@ -79,23 +79,27 @@ struct CalendarView: View {
                                     .foregroundStyle(.secondary)
                             }
                         }
-                        .padding(12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .fill(Material.liquidGlass)
-                        )
+                        .glassCard(contentPadding: 20)
+                    } header: {
+                        SectionHeaderLabel("Aktuelle Woche", systemImage: "sparkles")
                     }
+                    .glassListRow()
                 }
+
                 Section {
                     DatePicker("Datum auswählen", selection: selectedDateBinding, displayedComponents: .date)
                         .datePickerStyle(.graphical)
                         .labelsHidden()
+                        .glassCard(contentPadding: 12)
+                } header: {
+                    SectionHeaderLabel("Datum auswählen", systemImage: "calendar")
                 }
+                .glassListRow()
 
-                Section("Training") {
+                Section {
                     if trainingsAmTag.isEmpty {
-                        Text("Keine Trainingseinheiten für diesen Tag.")
-                            .foregroundStyle(.secondary)
+                        ContentUnavailableHint(title: "Kein Training", subtitle: "Erfasse eine Einheit, um den Tag zu füllen.", systemImage: "figure.swim")
+                            .glassListRow()
                     } else {
                         ForEach(trainingsAmTag) { session in
                             NavigationLink {
@@ -103,17 +107,21 @@ struct CalendarView: View {
                             } label: {
                                 TrainingCell(session: session)
                             }
+                            .buttonStyle(.plain)
+                            .glassListRow()
                         }
                         .onDelete { offsets in
                             loescheTraining(at: offsets, aus: trainingsAmTag)
                         }
                     }
+                } header: {
+                    SectionHeaderLabel("Training", systemImage: "figure.swim")
                 }
 
-                Section("Wettkämpfe") {
+                Section {
                     if wettkaempfeAmTag.isEmpty {
-                        Text("Keine Wettkämpfe für diesen Tag.")
-                            .foregroundStyle(.secondary)
+                        ContentUnavailableHint(title: "Keine Wettkämpfe", subtitle: "Plane deine nächsten Rennen und bleibe motiviert.", systemImage: "stopwatch")
+                            .glassListRow()
                     } else {
                         ForEach(wettkaempfeAmTag) { wettkampf in
                             NavigationLink {
@@ -121,14 +129,21 @@ struct CalendarView: View {
                             } label: {
                                 CompetitionCell(comp: wettkampf)
                             }
+                            .buttonStyle(.plain)
+                            .glassListRow()
                         }
                         .onDelete { offsets in
                             loescheWettkampf(at: offsets, aus: wettkaempfeAmTag)
                         }
                     }
+                } header: {
+                    SectionHeaderLabel("Wettkämpfe", systemImage: "trophy")
                 }
             }
-            .listStyle(.insetGrouped)
+            .listStyle(.plain)
+            .listSectionSpacing(24)
+            .scrollContentBackground(.hidden)
+            .background(Color.clear)
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Menu {
@@ -144,13 +159,15 @@ struct CalendarView: View {
         }
         .navigationTitle("Kalender")
         .toolbarBackground(.visible, for: .navigationBar)
-        .toolbarBackground(Material.liquidGlass, for: .navigationBar)
+        .toolbarBackground(AppTheme.barMaterial, for: .navigationBar)
+        .toolbarColorScheme(.light, for: .navigationBar)
         .onAppear {
             if !hatInitialCheckAusgefuehrt {
                 hatInitialCheckAusgefuehrt = true
                 stelleTrainingseinheitSicher(fuer: selectedDate)
             }
         }
+        .appSurfaceBackground()
     }
 
     private func stelleTrainingseinheitSicher(fuer datum: Date) {
@@ -180,26 +197,30 @@ struct TrainingCell: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("\(session.gesamtMeter) m").font(.headline)
+                Text("\(session.gesamtMeter) m")
+                    .font(.title3.bold())
                 Spacer()
-                Text("\(session.gesamtDauerSek/60) min").font(.subheadline)
+                Text("\(session.gesamtDauerSek/60) min")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
             }
             HStack {
-                Text("Borg: \(session.borgWert)/10").font(.footnote)
+                Label("Borg \(session.borgWert)/10", systemImage: "heart.fill")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.pink)
                 Spacer()
-                Text(session.datum, style: .date).font(.footnote)
+                Text(session.datum, style: .date)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
             if let gefuehl = session.gefuehl, !gefuehl.isEmpty {
                 Text(gefuehl)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                    .italic()
             }
         }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Material.liquidGlass)
-        )
+        .glassCard(contentPadding: 16)
     }
 }
 
@@ -208,20 +229,23 @@ struct CompetitionCell: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(comp.name).font(.headline)
+                Text(comp.name)
+                    .font(.title3.bold())
                 Spacer()
-                Text(comp.bahn.titel).font(.subheadline)
+                Text(comp.bahn.titel)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
             }
             HStack {
-                Text(comp.ort).font(.footnote)
+                Label(comp.ort, systemImage: "mappin.and.ellipse")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
                 Spacer()
-                Text(comp.datum, style: .date).font(.footnote)
+                Text(comp.datum, style: .date)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
         }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Material.liquidGlass)
-        )
+        .glassCard(contentPadding: 16)
     }
 }
