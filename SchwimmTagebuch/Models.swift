@@ -32,7 +32,17 @@ final class TrainingSession {
     @Relationship(deleteRule: .cascade) var sets: [WorkoutSet] = []
     @Relationship(deleteRule: .nullify, inverse: \AppUser.sessions) var owner: AppUser?
 
-    init(datum: Date, meter: Int, dauerSek: Int, borgWert: Int, notizen: String? = nil, ort: Ort = .becken, gefuehl: String? = nil, owner: AppUser? = nil) {
+    init(
+        datum: Date,
+        meter: Int,
+        dauerSek: Int,
+        borgWert: Int,
+        notizen: String? = nil,
+        ort: Ort = .becken,
+        gefuehl: String? = nil,
+        intensitaet: Intensitaet? = nil,
+        owner: AppUser? = nil
+    ) {
         self.id = UUID()
         self.datum = datum
         self.gesamtMeter = meter
@@ -41,7 +51,7 @@ final class TrainingSession {
         self.notizen = notizen
         self.ort = ort
         self.gefuehl = gefuehl
-        self.intensitaet = nil
+        self.intensitaet = intensitaet
         self.owner = owner
     }
 
@@ -175,11 +185,13 @@ enum TechniqueFocus: String, Codable, CaseIterable, Identifiable {
 
 @Model
 final class SetLap {
+    @Attribute(.unique) var id: UUID
     var index: Int
     var splitSek: Int
     var set: WorkoutSet?
 
     init(index: Int, splitSek: Int, set: WorkoutSet? = nil) {
+        self.id = UUID()
         self.index = index
         self.splitSek = splitSek
         self.set = set

@@ -188,9 +188,6 @@ struct Card<Content: View>: View {
             content
         }
         .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Material.liquidGlass)
-        )
+        .liquidGlassBackground(cornerRadius: 20)
     }
 }

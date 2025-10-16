@@ -56,6 +56,10 @@ struct CalendarView: View {
         }
         return (meter, minuten, dieserWoche.count, durchschnitt, gefuehle)
     }
+    private var wochenMoodSummary: MoodSummary? {
+        guard let gefuehle = aktuelleWochenStatistik?.gefuehle, !gefuehle.isEmpty else { return nil }
+        return MoodAnalyzer.analyze(notes: gefuehle)
+    }
 
     var body: some View {
         NavigationStack {
@@ -78,12 +82,13 @@ struct CalendarView: View {
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
                             }
+                            if let summary = wochenMoodSummary {
+                                MoodSummaryView(summary: summary)
+                                    .padding(.top, 8)
+                            }
                         }
                         .padding(12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .fill(Material.liquidGlass)
-                        )
+                        .liquidGlassBackground(cornerRadius: 16)
                     }
                 }
                 Section {
@@ -175,6 +180,59 @@ struct CalendarView: View {
     }
 }
 
+struct MoodSummaryView: View {
+    let summary: MoodSummary
+
+    private var normalizedSentiment: Double {
+        (summary.sentiment + 1) / 2
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Gauge(value: normalizedSentiment) {
+                Text("Stimmungsauswertung")
+            } currentValueLabel: {
+                Text(summary.sentiment.formatted(.number.precision(.fractionLength(2))))
+            } minimumValueLabel: {
+                Text("negativ")
+                    .font(.caption2)
+            } maximumValueLabel: {
+                Text("positiv")
+                    .font(.caption2)
+            }
+            .gaugeStyle(.accessoryLinearCapacity)
+
+            HStack(spacing: 16) {
+                Label("\(summary.positive)", systemImage: "hand.thumbsup")
+                    .foregroundStyle(.green)
+                Label("\(summary.negative)", systemImage: "hand.thumbsdown")
+                    .foregroundStyle(.red)
+                Label("\(summary.neutral)", systemImage: "face.neutral")
+                    .foregroundStyle(.secondary)
+            }
+            .font(.caption)
+
+            if !summary.keywordFrequencies.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack {
+                        ForEach(summary.keywordFrequencies, id: \.0) { keyword, count in
+                            Text("#\(keyword) · \(count)")
+                                .font(.caption2)
+                                .padding(.vertical, 4)
+                                .padding(.horizontal, 8)
+                                .background(Capsule().fill(Color.teal.opacity(0.2)))
+                        }
+                    }
+                }
+            } else {
+                Text("Zu wenig Stimmungseinträge für eine Analyse.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
 struct TrainingCell: View {
     let session: TrainingSession
     var body: some View {
@@ -189,6 +247,11 @@ struct TrainingCell: View {
                 Spacer()
                 Text(session.datum, style: .date).font(.footnote)
             }
+            if let intensitaet = session.intensitaet {
+                Label(intensitaet.titel, systemImage: "flame.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
             if let gefuehl = session.gefuehl, !gefuehl.isEmpty {
                 Text(gefuehl)
                     .font(.footnote)
@@ -196,10 +259,7 @@ struct TrainingCell: View {
             }
         }
         .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Material.liquidGlass)
-        )
+        .liquidGlassBackground(cornerRadius: 16)
     }
 }
 
@@ -219,9 +279,6 @@ struct CompetitionCell: View {
             }
         }
         .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Material.liquidGlass)
-        )
+        .liquidGlassBackground(cornerRadius: 16)
     }
 }

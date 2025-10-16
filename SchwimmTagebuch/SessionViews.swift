@@ -21,11 +21,25 @@ struct SessionDetailView: View {
                 Picker("Intensität (Borg 1-10)", selection: $session.borgWert) {
                     ForEach(1...10, id: \.self) { Text("\($0)").tag($0) }
                 }
+                Picker("Qualitative Intensität", selection: Binding<Intensitaet?>(
+                    get: { session.intensitaet },
+                    set: { newValue in session.intensitaet = newValue }
+                )) {
+                    Text("Keine").tag(Intensitaet?.none)
+                    ForEach(Intensitaet.allCases) { option in
+                        Text(option.titel).tag(Intensitaet?.some(option))
+                    }
+                }
                 Picker("Ort", selection: $session.ort) {
                     ForEach(Ort.allCases) { Text($0.titel).tag($0) }
                 }
                 TextField("Eigenes Gefühl", text: Binding($session.gefuehl, default: ""), axis: .vertical)
                 TextField("Notizen", text: Binding($session.notizen, default: ""), axis: .vertical)
+                if let intensitaet = session.intensitaet {
+                    Label("Aktuelle Intensität: \(intensitaet.titel)", systemImage: "flame.fill")
+                        .foregroundStyle(.orange)
+                        .font(.footnote)
+                }
             }
             Section("Sets") {
                 if session.sets.isEmpty {
@@ -74,6 +88,7 @@ struct SessionDetailView: View {
 
 struct SetDetailView: View {
     @Bindable var set: WorkoutSet
+    @State private var zeigtSplitImporter = false
     var body: some View {
         Form {
             Section("Details") {
@@ -113,16 +128,58 @@ struct SetDetailView: View {
                 }
             }
             Section("Splits (s)") {
-                ForEach(set.laps) { lap in
-                    HStack {
-                        Text("#\(lap.index+1)")
-                        Spacer()
-                        Text("\(lap.splitSek) s")
+                if set.laps.isEmpty {
+                    Text("Noch keine Splits erfasst.")
+                        .foregroundStyle(.secondary)
+                }
+                ForEach($set.laps) { $lap in
+                    Stepper(value: $lap.splitSek, in: 10...3600, step: 1) {
+                        HStack {
+                            Text("#\(lap.index + 1)")
+                            Spacer()
+                            Text(Zeit.formatSek(lap.splitSek))
+                                .monospacedDigit()
+                        }
                     }
+                }
+                .onDelete { indices in
+                    set.laps.remove(atOffsets: indices)
+                    aktualisiereLapIndizes()
+                }
+                Button { fuegeSplitHinzu() } label: {
+                    Label("Split hinzufügen", systemImage: "plus")
+                }
+                Button { zeigtSplitImporter = true } label: {
+                    Label("Splits importieren", systemImage: "square.and.arrow.down")
                 }
             }
         }
         .navigationTitle("Set")
+        .sheet(isPresented: $zeigtSplitImporter) {
+            SplitImportSheet(aktuellesSet: set) { neueSplits in
+                set.laps = neueSplits
+                aktualisiereLapIndizes()
+            }
+        }
+    }
+
+    private func fuegeSplitHinzu() {
+        let neuerIndex = set.laps.count
+        let lap = SetLap(index: neuerIndex, splitSek: max(set.intervallSek, 30), set: set)
+        set.laps.append(lap)
+        aktualisiereLapIndizes()
+    }
+
+    private func aktualisiereLapIndizes() {
+        for (idx, lap) in set.laps.enumerated() {
+            lap.index = idx
+            lap.set = set
+        }
+        speichere()
+    }
+
+    private func speichere() {
+        try? set.modelContext?.save()
     }
 }
 
@@ -135,6 +192,7 @@ struct SessionEditorSheet: View {
     @State private var dauerMin = 60
     @State private var borg = 5
     @State private var ort: Ort = .becken
+    @State private var intensitaet: Intensitaet?
     @State private var gefuehl = ""
     @State private var notizen = ""
 
@@ -150,6 +208,12 @@ struct SessionEditorSheet: View {
         if let ortRaw = defaults.string(forKey: SettingsKeys.defaultSessionOrt), let defaultOrt = Ort(rawValue: ortRaw) {
             _ort = State(initialValue: defaultOrt)
         }
+        if let intensitaetRaw = defaults.string(forKey: SettingsKeys.defaultSessionIntensitaet),
+           let defaultIntensitaet = Intensitaet(rawValue: intensitaetRaw) {
+            _intensitaet = State(initialValue: defaultIntensitaet)
+        } else {
+            _intensitaet = State(initialValue: nil)
+        }
     }
 
     var body: some View {
@@ -162,6 +226,15 @@ struct SessionEditorSheet: View {
                     .keyboardType(.numberPad)
                 Picker("Intensität (Borg 1-10)", selection: $borg) {
                     ForEach(1...10, id: \.self) { Text("\($0)").tag($0) }
+                }
+                Picker("Qualitative Intensität", selection: Binding<Intensitaet?>(
+                    get: { intensitaet },
+                    set: { intensitaet = $0 }
+                )) {
+                    Text("Keine").tag(Intensitaet?.none)
+                    ForEach(Intensitaet.allCases) { option in
+                        Text(option.titel).tag(Intensitaet?.some(option))
+                    }
                 }
                 Picker("Ort", selection: $ort) { ForEach(Ort.allCases) { Text($0.titel).tag($0) } }
                 TextField("Eigenes Gefühl", text: $gefuehl, axis: .vertical)
@@ -184,6 +257,7 @@ struct SessionEditorSheet: View {
             notizen: notizen.isEmpty ? nil : notizen,
             ort: ort,
             gefuehl: gefuehl.isEmpty ? nil : gefuehl,
+            intensitaet: intensitaet,
             owner: user
         )
         context.insert(s)
@@ -272,5 +346,98 @@ struct SetEditorSheet: View {
         session.sets.append(neu)
         try? session.modelContext?.save()
         dismiss()
+    }
+}
+
+struct SplitImportSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var rohtext = ""
+    @State private var fehlerText: String?
+    let aktuellesSet: WorkoutSet
+    let onImport: ([SetLap]) -> Void
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Zwischenzeiten einfügen") {
+                    TextEditor(text: $rohtext)
+                        .frame(minHeight: 160)
+                        .font(.system(.body, design: .monospaced))
+                        .overlay(alignment: .topLeading) {
+                            if rohtext.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                Text("Eine Zeit pro Zeile, z. B. 1:05 oder 65.4")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .padding(8)
+                            }
+                        }
+                }
+                if let fehlerText {
+                    Section {
+                        Label(fehlerText, systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.orange)
+                    }
+                }
+            }
+            .navigationTitle("Splits importieren")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("Übernehmen") { importiereSplits() } }
+            }
+        }
+    }
+
+    private func importiereSplits() {
+        do {
+            let sekunden = try parseSplits()
+            let neueLaps = sekunden.enumerated().map { index, wert in
+                SetLap(index: index, splitSek: wert, set: aktuellesSet)
+            }
+            onImport(neueLaps)
+            dismiss()
+        } catch {
+            fehlerText = error.localizedDescription
+        }
+    }
+
+    private func parseSplits() throws -> [Int] {
+        let tokens = rohtext
+            .replacingOccurrences(of: ",", with: ".")
+            .components(separatedBy: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ";")))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !tokens.isEmpty else {
+            throw SplitImportError.keineDaten
+        }
+        var result: [Int] = []
+        for token in tokens {
+            if token.contains(":") {
+                let teile = token.split(separator: ":")
+                guard teile.count == 2, let minuten = Int(teile[0]), let sekundenDouble = Double(teile[1]) else {
+                    throw SplitImportError.unerwartetesFormat(token)
+                }
+                let total = minuten * 60 + Int(round(sekundenDouble))
+                result.append(total)
+            } else if let wert = Double(token) {
+                result.append(Int(round(wert)))
+            } else {
+                throw SplitImportError.unerwartetesFormat(token)
+            }
+        }
+        return result
+    }
+
+    private enum SplitImportError: LocalizedError {
+        case keineDaten
+        case unerwartetesFormat(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .keineDaten:
+                return "Keine Splits gefunden."
+            case let .unerwartetesFormat(value):
+                return "Format von \(value) konnte nicht erkannt werden."
+            }
+        }
     }
 }

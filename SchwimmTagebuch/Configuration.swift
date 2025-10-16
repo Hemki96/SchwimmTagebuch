@@ -14,6 +14,8 @@ enum SettingsKeys {
     static let defaultSessionBorg = "settings.defaultSessionBorg"
     static let defaultSessionOrt = "settings.defaultSessionOrt"
     static let lastBackupISO = "settings.lastBackupISO"
+    static let defaultSessionIntensitaet = "settings.defaultSessionIntensitaet"
+    static let cloudSyncEnabled = "settings.cloudSyncEnabled"
 }
 
 enum ExportFormat: String, CaseIterable, Identifiable, Codable {
