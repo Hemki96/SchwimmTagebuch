@@ -192,11 +192,11 @@ private enum SimpleZip {
 private extension Data {
     mutating func append(uint16 value: UInt16) {
         var little = value.littleEndian
-        withUnsafeBytes(of: &little) { append(contentsOf: $0) }
+        Swift.withUnsafeBytes(of: &little) { append(contentsOf: $0) }
     }
 
     mutating func append(uint32 value: UInt32) {
         var little = value.littleEndian
-        withUnsafeBytes(of: &little) { append(contentsOf: $0) }
+        Swift.withUnsafeBytes(of: &little) { append(contentsOf: $0) }
     }
 }
