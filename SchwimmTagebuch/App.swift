@@ -3,6 +3,22 @@ import SwiftData
 
 @main
 struct SchwimmTagebuchApp: App {
+    init() {
+        UserDefaults.standard.register(defaults: [
+            SettingsKeys.weeklyGoal: 15000,
+            SettingsKeys.goalTrackingEnabled: true,
+            SettingsKeys.reminderEnabled: false,
+            SettingsKeys.reminderWeekday: Weekday.monday.rawValue,
+            SettingsKeys.autoExportEnabled: false,
+            SettingsKeys.autoExportFormat: ExportFormat.json.rawValue,
+            SettingsKeys.showEquipmentBadges: true,
+            SettingsKeys.defaultSessionMeters: 3000,
+            SettingsKeys.defaultSessionDuration: 60,
+            SettingsKeys.defaultSessionBorg: 5,
+            SettingsKeys.defaultSessionOrt: Ort.becken.rawValue
+        ])
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()

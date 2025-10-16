@@ -17,3 +17,13 @@ extension Binding where Value == String {
         )
     }
 }
+
+extension Array where Element == String {
+    mutating func updatePresence(of value: String, include: Bool) {
+        if include {
+            if !contains(value) { append(value) }
+        } else {
+            removeAll { $0 == value }
+        }
+    }
+}

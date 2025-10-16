@@ -6,12 +6,96 @@ struct SettingsView: View {
     @Query private var sessions: [TrainingSession]
     @Query private var competitions: [Competition]
     @State private var zeigtResetAlert = false
+    @State private var zeigtShareSheet = false
+    @State private var backupURL: URL?
+    @State private var zeigtBackupFehler = false
+    @State private var backupFehlerText = ""
+    @AppStorage(SettingsKeys.weeklyGoal) private var weeklyGoal = 15000
+    @AppStorage(SettingsKeys.goalTrackingEnabled) private var goalTrackingEnabled = true
+    @AppStorage(SettingsKeys.reminderEnabled) private var reminderEnabled = false
+    @AppStorage(SettingsKeys.reminderWeekday) private var reminderWeekdayRaw = Weekday.monday.rawValue
+    @AppStorage(SettingsKeys.autoExportEnabled) private var autoExportEnabled = false
+    @AppStorage(SettingsKeys.autoExportFormat) private var autoExportFormatRaw = ExportFormat.json.rawValue
+    @AppStorage(SettingsKeys.showEquipmentBadges) private var showEquipmentBadges = true
+    @AppStorage(SettingsKeys.defaultSessionMeters) private var defaultSessionMeters = 3000
+    @AppStorage(SettingsKeys.defaultSessionDuration) private var defaultSessionDuration = 60
+    @AppStorage(SettingsKeys.defaultSessionBorg) private var defaultSessionBorg = 5
+    @AppStorage(SettingsKeys.defaultSessionOrt) private var defaultSessionOrtRaw = Ort.becken.rawValue
+    @AppStorage(SettingsKeys.lastBackupISO) private var lastBackupISO = ""
+
+    private var reminderWeekday: Binding<Weekday> {
+        Binding(
+            get: { Weekday(rawValue: reminderWeekdayRaw) ?? .monday },
+            set: { reminderWeekdayRaw = $0.rawValue }
+        )
+    }
+    private var autoExportFormat: ExportFormat { ExportFormat(rawValue: autoExportFormatRaw) ?? .json }
+    private var lastBackupDescription: String {
+        guard let date = ISO8601DateFormatter().date(from: lastBackupISO) else { return "Noch keine Sicherung" }
+        let formatter = DateFormatter(); formatter.dateStyle = .medium; formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("Design") {
+                Section("Profil & Ziele") {
+                    Toggle("Ziel-Tracking aktiv", isOn: $goalTrackingEnabled)
+                    if goalTrackingEnabled {
+                        Stepper(value: $weeklyGoal, in: 1000...100_000, step: 500) {
+                            Text("Wöchentliches Ziel: \(weeklyGoal.formatted()) m")
+                        }
+                        Toggle("Wöchentliche Erinnerung", isOn: $reminderEnabled)
+                        if reminderEnabled {
+                            Picker("Erinnerungstag", selection: reminderWeekday) {
+                                ForEach(Weekday.allCases) { day in
+                                    Text(day.titel).tag(day)
+                                }
+                            }
+                        }
+                    }
+                }
+                Section("Trainings-Defaults") {
+                    Stepper(value: $defaultSessionMeters, in: 500...20_000, step: 250) {
+                        Text("Standardumfang: \(defaultSessionMeters) m")
+                    }
+                    Stepper(value: $defaultSessionDuration, in: 10...240, step: 5) {
+                        Text("Standarddauer: \(defaultSessionDuration) min")
+                    }
+                    Stepper(value: $defaultSessionBorg, in: 1...10) {
+                        Text("Standard-Borg: \(defaultSessionBorg)")
+                    }
+                    Picker("Standard-Ort", selection: $defaultSessionOrtRaw) {
+                        ForEach(Ort.allCases) { ort in
+                            Text(ort.titel).tag(ort.rawValue)
+                        }
+                    }
+                }
+                Section("Darstellung") {
+                    Toggle("Equipment & Technik im Überblick zeigen", isOn: $showEquipmentBadges)
                     Text("Liquid-Glass-Effekt ist aktiv (Platzhalter-Material).")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Section("Export & Synchronisation") {
+                    Toggle("Automatische Sicherung aktivieren", isOn: $autoExportEnabled)
+                    Picker("Exportformat", selection: $autoExportFormatRaw) {
+                        ForEach(ExportFormat.allCases) { format in
+                            Text(format.titel).tag(format.rawValue)
+                        }
+                    }
+                    Text(autoExportFormat.beschreibung)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button {
+                        starteBackup()
+                    } label: {
+                        Label("Backup jetzt erstellen", systemImage: "externaldrive")
+                    }
+                    .disabled(sessions.isEmpty && competitions.isEmpty)
+                    Text("Letzte Sicherung: \(lastBackupDescription)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
                 Section("Daten") {
                     Button(role: .destructive) { zeigtResetAlert = true } label: { Text("Alle Daten löschen") }
@@ -23,6 +107,16 @@ struct SettingsView: View {
             } message: {
                 Text("Dies kann nicht rückgängig gemacht werden.")
             }
+            .sheet(isPresented: $zeigtShareSheet) {
+                if let backupURL {
+                    ShareSheet(activityItems: [backupURL])
+                }
+            }
+            .alert("Backup fehlgeschlagen", isPresented: $zeigtBackupFehler) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(backupFehlerText)
+            }
         }
         .navigationTitle("Einstellungen")
         .toolbarBackground(.visible, for: .navigationBar)
@@ -33,5 +127,17 @@ struct SettingsView: View {
         for s in sessions { context.delete(s) }
         for c in competitions { context.delete(c) }
         try? context.save()
+    }
+
+    private func starteBackup() {
+        do {
+            let url = try AutoBackupService.performBackup(sessions: sessions, competitions: competitions, format: autoExportFormat)
+            lastBackupISO = ISO8601DateFormatter().string(from: Date())
+            backupURL = url
+            zeigtShareSheet = true
+        } catch {
+            backupFehlerText = error.localizedDescription
+            zeigtBackupFehler = true
+        }
     }
 }
