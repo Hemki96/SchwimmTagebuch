@@ -110,77 +110,151 @@ struct ShareSheet: UIViewControllerRepresentable {
 
 enum CSVBuilder {
     static func trainingsCSV(_ list: [TrainingSession]) -> String {
+        let exports = ExportDataFactory.sessions(list)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+
         var lines = ["date,totalMeters,totalMinutes,borg,location,feeling,notes,equipment,technique"]
-        let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd"
-        for s in list {
-            let date = df.string(from: s.datum)
-            let mins = s.gesamtDauerSek/60
-            let equipment = Set(s.sets.flatMap { $0.equipment }).compactMap { TrainingEquipment(rawValue: $0)?.titel ?? $0 }.sorted().joined(separator: "; ")
-            let technik = Set(s.sets.flatMap { $0.technikSchwerpunkte }).compactMap { TechniqueFocus(rawValue: $0)?.titel ?? $0 }.sorted().joined(separator: "; ")
-            let row = "\(date),\(s.gesamtMeter),\(mins),\(s.borgWert),\(s.ort.titel),\(escapeCSV(s.gefuehl ?? "")),\(escapeCSV(s.notizen ?? "")),\(escapeCSV(equipment)),\(escapeCSV(technik))"
+        for session in exports {
+            let row = [
+                session.dateString(using: formatter),
+                String(session.totalMeters),
+                String(session.totalMinutes),
+                String(session.borg),
+                CSVFormatter.escape(session.locationTitle),
+                CSVFormatter.escape(session.feeling),
+                CSVFormatter.escape(session.notes),
+                CSVFormatter.escape(session.equipmentSummaryString),
+                CSVFormatter.escape(session.techniqueSummaryString)
+            ].joined(separator: ",")
             lines.append(row)
         }
         return lines.joined(separator: "\n")
     }
-    static func wettkampfCSV(_ comps: [Competition]) -> String {
+
+    static func wettkampfCSV(_ competitions: [Competition]) -> String {
+        let exports = ExportDataFactory.competitions(competitions)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+
         var lines = ["date,name,venue,course,stroke,distance,timeSec,rank,isPB"]
-        let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd"
-        for c in comps {
-            for r in c.results {
-                let date = df.string(from: c.datum)
-                let row = "\(date),\(c.name),\(escapeCSV(c.ort)),\(c.bahn.titel),\(r.lage.titel),\(r.distanz),\(r.zeitSek),\(r.platz ?? 0),\(r.istPB)"
+        for competition in exports {
+            for result in competition.results {
+                let row = [
+                    competition.dateString(using: formatter),
+                    CSVFormatter.escape(competition.name),
+                    CSVFormatter.escape(competition.venue),
+                    CSVFormatter.escape(competition.courseTitle),
+                    CSVFormatter.escape(result.strokeTitle),
+                    String(result.distance),
+                    String(result.timeSec),
+                    String(result.rank ?? 0),
+                    String(result.isPersonalBest)
+                ].joined(separator: ",")
                 lines.append(row)
             }
         }
         return lines.joined(separator: "\n")
     }
-    private static func escapeCSV(_ v: String) -> String {
-        // RFC 4180 style: wrap in quotes if value contains comma, quote, or newline; double quotes inside
-        let needsQuoting = v.contains(",") || v.contains("\n") || v.contains("\"")
-        if needsQuoting {
-            let escaped = v.replacingOccurrences(of: "\"", with: "\"\"")
-            return "\"\(escaped)\""
-        }
-        return v
-    }
 }
 
 enum JSONBuilder {
     static func exportJSON(sessions: [TrainingSession], competitions: [Competition]) -> String {
-        struct S: Codable { let date: String; let totalMeters: Int; let totalDurationSec: Int; let borg: Int; let location: String; let feeling: String; let notes: String; let equipment: [String]; let technique: [String]; let sets: [SetDTO] }
-        struct SetDTO: Codable { let title: String; let reps: Int; let distancePerRep: Int; let intervalSec: Int; let equipment: [String]; let technique: [String]; let laps: [Int] }
-        struct C: Codable { let date: String; let name: String; let venue: String; let course: String; let results: [R] }
-        struct R: Codable { let stroke: String; let distance: Int; let timeSec: Int; let isPB: Bool }
-        struct Root: Codable { let trainings: [S]; let competitions: [C] }
+        struct TrainingDTO: Codable {
+            let date: String
+            let totalMeters: Int
+            let totalDurationSec: Int
+            let borg: Int
+            let location: String
+            let feeling: String
+            let notes: String
+            let equipment: [String]
+            let technique: [String]
+            let sets: [SetDTO]
+        }
 
-        let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd"
-        let trainings: [S] = sessions.map { s in
-            let sets: [SetDTO] = s.sets.map { set in
-                let equipment = set.equipment.compactMap { TrainingEquipment(rawValue: $0)?.titel ?? $0 }
-                let technik = set.technikSchwerpunkte.compactMap { TechniqueFocus(rawValue: $0)?.titel ?? $0 }
-                return SetDTO(title: set.titel, reps: set.wiederholungen, distancePerRep: set.distanzProWdh, intervalSec: set.intervallSek, equipment: equipment, technique: technik, laps: set.laps.map { $0.splitSek })
-            }
-            let equipment = Array(Set(s.sets.flatMap { $0.equipment.compactMap { TrainingEquipment(rawValue: $0)?.titel ?? $0 } })).sorted()
-            let technik = Array(Set(s.sets.flatMap { $0.technikSchwerpunkte.compactMap { TechniqueFocus(rawValue: $0)?.titel ?? $0 } })).sorted()
-            return S(
-                date: df.string(from: s.datum),
-                totalMeters: s.gesamtMeter,
-                totalDurationSec: s.gesamtDauerSek,
-                borg: s.borgWert,
-                location: s.ort.titel,
-                feeling: s.gefuehl ?? "",
-                notes: s.notizen ?? "",
-                equipment: equipment,
-                technique: technik,
-                sets: sets
+        struct SetDTO: Codable {
+            let title: String
+            let reps: Int
+            let distancePerRep: Int
+            let intervalSec: Int
+            let equipment: [String]
+            let technique: [String]
+            let laps: [Int]
+        }
+
+        struct CompetitionDTO: Codable {
+            let date: String
+            let name: String
+            let venue: String
+            let course: String
+            let results: [ResultDTO]
+        }
+
+        struct ResultDTO: Codable {
+            let stroke: String
+            let distance: Int
+            let timeSec: Int
+            let isPB: Bool
+        }
+
+        struct Root: Codable {
+            let trainings: [TrainingDTO]
+            let competitions: [CompetitionDTO]
+        }
+
+        let sessionExports = ExportDataFactory.sessions(sessions)
+        let competitionExports = ExportDataFactory.competitions(competitions)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+
+        let trainings: [TrainingDTO] = sessionExports.map { session in
+            TrainingDTO(
+                date: session.dateString(using: formatter),
+                totalMeters: session.totalMeters,
+                totalDurationSec: session.totalDurationSec,
+                borg: session.borg,
+                location: session.locationTitle,
+                feeling: session.feeling,
+                notes: session.notes,
+                equipment: session.equipmentSummary,
+                technique: session.techniqueSummary,
+                sets: session.sets.map { set in
+                    SetDTO(
+                        title: set.title,
+                        reps: set.repetitions,
+                        distancePerRep: set.distancePerRep,
+                        intervalSec: set.intervalSec,
+                        equipment: set.equipment,
+                        technique: set.technique,
+                        laps: set.laps
+                    )
+                }
             )
         }
-        let comps: [C] = competitions.map { c in
-            let rs: [R] = c.results.map { r in R(stroke: r.lage.titel, distance: r.distanz, timeSec: r.zeitSek, isPB: r.istPB) }
-            return C(date: df.string(from: c.datum), name: c.name, venue: c.ort, course: c.bahn.titel, results: rs)
+
+        let competitionsDTO: [CompetitionDTO] = competitionExports.map { competition in
+            CompetitionDTO(
+                date: competition.dateString(using: formatter),
+                name: competition.name,
+                venue: competition.venue,
+                course: competition.courseTitle,
+                results: competition.results.map { result in
+                    ResultDTO(
+                        stroke: result.strokeTitle,
+                        distance: result.distance,
+                        timeSec: result.timeSec,
+                        isPB: result.isPersonalBest
+                    )
+                }
+            )
         }
-        let root = Root(trainings: trainings, competitions: comps)
-        let data = try! JSONEncoder().encode(root)
-        return String(data: data, encoding: .utf8) ?? "{}"
+
+        let root = Root(trainings: trainings, competitions: competitionsDTO)
+        guard
+            let data = try? JSONEncoder().encode(root),
+            let jsonString = String(data: data, encoding: .utf8)
+        else { return "{}" }
+        return jsonString
     }
 }

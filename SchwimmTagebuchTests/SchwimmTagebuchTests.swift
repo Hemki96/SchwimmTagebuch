@@ -114,4 +114,151 @@ final class SchwimmTagebuchTests: XCTestCase {
         XCTAssertEqual(decoded.competitions[0].results.first?.stroke, "Lagen")
         XCTAssertEqual(decoded.competitions[0].results.first?.distance, 200)
     }
+
+    func testExportDataFactoryAggregiertEquipmentUndTechnik() {
+        let session = TrainingSession(
+            datum: Date(timeIntervalSince1970: 0),
+            meter: 2000,
+            dauerSek: 2700,
+            borgWert: 5,
+            notizen: nil,
+            ort: .becken,
+            gefuehl: "Solide"
+        )
+
+        let set1 = WorkoutSet(
+            titel: "Warm-Up",
+            wiederholungen: 4,
+            distanzProWdh: 100,
+            intervallSek: 120,
+            equipment: [TrainingEquipment.pullbuoy.rawValue, "extra"],
+            technikSchwerpunkte: [TechniqueFocus.breathing.rawValue],
+            kommentar: nil
+        )
+        set1.laps = [SetLap(index: 0, splitSek: 90)]
+
+        let set2 = WorkoutSet(
+            titel: "Main",
+            wiederholungen: 5,
+            distanzProWdh: 200,
+            intervallSek: 180,
+            equipment: [TrainingEquipment.resistanceBand.rawValue, TrainingEquipment.pullbuoy.rawValue],
+            technikSchwerpunkte: [TechniqueFocus.paceControl.rawValue],
+            kommentar: nil
+        )
+
+        session.sets.append(contentsOf: [set1, set2])
+
+        let exports = ExportDataFactory.sessions([session])
+        XCTAssertEqual(exports.count, 1)
+
+        guard let export = exports.first else {
+            return XCTFail("Exportdaten fehlen")
+        }
+        XCTAssertEqual(export.totalMinutes, 45)
+        XCTAssertEqual(export.locationTitle, "Becken")
+        XCTAssertEqual(export.equipmentSummary, ["Band", "Pullbuoy"])
+        XCTAssertEqual(export.techniqueSummary, ["Atmung", "Pace"])
+
+        guard let firstSet = export.sets.first else {
+            return XCTFail("Set Export fehlt")
+        }
+        XCTAssertEqual(firstSet.equipment, ["Pullbuoy", "extra"])
+        XCTAssertEqual(firstSet.technique, ["Atmung"])
+        XCTAssertEqual(firstSet.laps, [90])
+    }
+
+    func testCSVBuilderEscapedSonderzeichen() {
+        let session = TrainingSession(
+            datum: Date(timeIntervalSince1970: 0),
+            meter: 500,
+            dauerSek: 480,
+            borgWert: 4,
+            notizen: "Anmerkung, \"Test\"",
+            ort: .becken,
+            gefuehl: "Sehr \"gut\""
+        )
+
+        let csv = CSVBuilder.trainingsCSV([session])
+        let lines = csv.split(separator: "\n", omittingEmptySubsequences: false)
+        XCTAssertEqual(lines.count, 2)
+        XCTAssertEqual(
+            lines[1],
+            "1970-01-01,500,8,4,Becken,\"Sehr \"\"gut\"\"\",\"Anmerkung, \"\"Test\"\"\",,"
+        )
+    }
+
+    func testAutoBackupServiceWirftFehlerOhneDaten() {
+        XCTAssertThrowsError(try AutoBackupService.performBackup(
+            sessions: [],
+            competitions: [],
+            format: .json
+        )) { error in
+            XCTAssertTrue(error is AutoBackupError)
+        }
+    }
+
+    func testAutoBackupServiceSchreibtInKonfiguriertesVerzeichnis() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let config = AutoBackupConfiguration(
+            fileManager: .default,
+            dateProvider: { Date(timeIntervalSince1970: 0) },
+            directoryProvider: { _ in tempDir }
+        )
+
+        let session = TrainingSession(
+            datum: Date(timeIntervalSince1970: 0),
+            meter: 1500,
+            dauerSek: 1800,
+            borgWert: 6
+        )
+
+        let url = try AutoBackupService.performBackup(
+            sessions: [session],
+            competitions: [],
+            format: .json,
+            configuration: config
+        )
+
+        XCTAssertTrue(url.path.hasPrefix(tempDir.path))
+        let data = try Data(contentsOf: url)
+        XCTAssertFalse(data.isEmpty)
+    }
+
+    func testAutoBackupServiceZipBundleEnthaeltAlleDateien() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let config = AutoBackupConfiguration(
+            fileManager: .default,
+            dateProvider: { Date(timeIntervalSince1970: 0) },
+            directoryProvider: { _ in tempDir }
+        )
+
+        let session = TrainingSession(
+            datum: Date(timeIntervalSince1970: 0),
+            meter: 1500,
+            dauerSek: 1800,
+            borgWert: 6
+        )
+        let competition = Competition(
+            datum: Date(timeIntervalSince1970: 86_400),
+            name: "Sommer", ort: "Hamburg", bahn: .lcm50
+        )
+        competition.results.append(RaceResult(lage: .freistil, distanz: 100, zeitSek: 60))
+
+        let url = try AutoBackupService.performBackup(
+            sessions: [session],
+            competitions: [competition],
+            format: .zipBundle,
+            configuration: config
+        )
+
+        let fileNames = try ZipArchive.fileNames(at: url)
+        XCTAssertEqual(Set(fileNames), ["training.csv", "wettkaempfe.csv", "export.json"])
+    }
 }
