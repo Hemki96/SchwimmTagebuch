@@ -3,6 +3,7 @@ import SwiftData
 
 struct CalendarView: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.currentUser) private var currentUser
     @Query(sort: \TrainingSession.datum, order: .reverse) private var sessions: [TrainingSession]
     @Query(sort: \Competition.datum, order: .reverse) private var competitions: [Competition]
     @State private var selectedDate = Calendar.current.startOfDay(for: Date())
@@ -23,17 +24,27 @@ struct CalendarView: View {
         )
     }
 
+    private var userSessions: [TrainingSession] {
+        guard let userID = currentUser?.id else { return [] }
+        return sessions.filter { $0.owner?.id == userID }
+    }
+
+    private var userCompetitions: [Competition] {
+        guard let userID = currentUser?.id else { return [] }
+        return competitions.filter { $0.owner?.id == userID }
+    }
+
     private var trainingsAmTag: [TrainingSession] {
-        sessions.filter { kalender.isDate($0.datum, inSameDayAs: selectedDate) }
+        userSessions.filter { kalender.isDate($0.datum, inSameDayAs: selectedDate) }
     }
 
     private var wettkaempfeAmTag: [Competition] {
-        competitions.filter { kalender.isDate($0.datum, inSameDayAs: selectedDate) }
+        userCompetitions.filter { kalender.isDate($0.datum, inSameDayAs: selectedDate) }
     }
 
     private var aktuelleWochenStatistik: (meter: Int, minuten: Int, sessions: Int, durchschnittBorg: Double, gefuehle: [String])? {
         guard let intervall = kalender.dateInterval(of: .weekOfYear, for: Date()) else { return nil }
-        let dieserWoche = sessions.filter { intervall.contains($0.datum) }
+        let dieserWoche = userSessions.filter { intervall.contains($0.datum) }
         guard !dieserWoche.isEmpty else { return nil }
         let meter = dieserWoche.reduce(0) { $0 + $1.gesamtMeter }
         let minuten = dieserWoche.reduce(0) { $0 + $1.gesamtDauerSek } / 60
@@ -143,8 +154,10 @@ struct CalendarView: View {
     }
 
     private func stelleTrainingseinheitSicher(fuer datum: Date) {
-        guard !sessions.contains(where: { kalender.isDate($0.datum, inSameDayAs: datum) }) else { return }
-        let neueSession = TrainingSession(datum: datum, meter: 0, dauerSek: 0, borgWert: 5)
+        guard let user = currentUser else { return }
+        let vorhandene = userSessions
+        guard !vorhandene.contains(where: { kalender.isDate($0.datum, inSameDayAs: datum) }) else { return }
+        let neueSession = TrainingSession(datum: datum, meter: 0, dauerSek: 0, borgWert: 5, owner: user)
         context.insert(neueSession)
         try? context.save()
     }

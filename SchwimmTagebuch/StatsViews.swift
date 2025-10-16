@@ -23,6 +23,7 @@ struct TechniqueUsage: Identifiable {
 }
 
 struct StatsView: View {
+    @Environment(\.currentUser) private var currentUser
     @Query(sort: \TrainingSession.datum) private var sessions: [TrainingSession]
     @AppStorage(SettingsKeys.goalTrackingEnabled) private var goalTrackingEnabled = true
     @AppStorage(SettingsKeys.weeklyGoal) private var weeklyGoal = 15000
@@ -30,7 +31,7 @@ struct StatsView: View {
     var wochen: [WochenStatistik] {
         var result: [WochenStatistik] = []
         let cal = Calendar(identifier: .iso8601)
-        let grouped = Dictionary(grouping: sessions) { s in cal.dateInterval(of: .weekOfYear, for: s.datum)!.start }
+        let grouped = Dictionary(grouping: filteredSessions) { s in cal.dateInterval(of: .weekOfYear, for: s.datum)!.start }
         for (start, list) in grouped {
             let meter = list.reduce(0) { $0 + $1.gesamtMeter }
             let dauer = list.reduce(0) { $0 + $1.gesamtDauerSek }
@@ -43,7 +44,7 @@ struct StatsView: View {
 
     var equipmentStats: [EquipmentUsage] {
         var counts: [TrainingEquipment: Int] = [:]
-        for set in sessions.flatMap({ $0.sets }) {
+        for set in filteredSessions.flatMap({ $0.sets }) {
             for item in set.equipment.compactMap({ TrainingEquipment(rawValue: $0) }) {
                 counts[item, default: 0] += 1
             }
@@ -53,7 +54,7 @@ struct StatsView: View {
 
     var techniqueStats: [TechniqueUsage] {
         var counts: [TechniqueFocus: Int] = [:]
-        for set in sessions.flatMap({ $0.sets }) {
+        for set in filteredSessions.flatMap({ $0.sets }) {
             for item in set.technikSchwerpunkte.compactMap({ TechniqueFocus(rawValue: $0) }) {
                 counts[item, default: 0] += 1
             }
@@ -165,6 +166,11 @@ struct StatsView: View {
         .navigationTitle("Statistiken")
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarBackground(Material.liquidGlass, for: .navigationBar)
+    }
+
+    private var filteredSessions: [TrainingSession] {
+        guard let userID = currentUser?.id else { return [] }
+        return sessions.filter { $0.owner?.id == userID }
     }
 }
 

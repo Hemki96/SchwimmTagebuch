@@ -2,6 +2,23 @@ import Foundation
 import SwiftData
 
 @Model
+final class AppUser {
+    @Attribute(.unique) var id: UUID
+    @Attribute(.unique) var email: String
+    var displayName: String
+    var passwordHash: String
+    @Relationship(deleteRule: .cascade) var sessions: [TrainingSession] = []
+    @Relationship(deleteRule: .cascade) var competitions: [Competition] = []
+
+    init(email: String, displayName: String, passwordHash: String) {
+        self.id = UUID()
+        self.email = email.lowercased()
+        self.displayName = displayName
+        self.passwordHash = passwordHash
+    }
+}
+
+@Model
 final class TrainingSession {
     @Attribute(.unique) var id: UUID
     var datum: Date
@@ -13,8 +30,9 @@ final class TrainingSession {
     var ort: Ort
     var gefuehl: String?
     @Relationship(deleteRule: .cascade) var sets: [WorkoutSet] = []
+    @Relationship(deleteRule: .nullify, inverse: \AppUser.sessions) var owner: AppUser?
 
-    init(datum: Date, meter: Int, dauerSek: Int, borgWert: Int, notizen: String? = nil, ort: Ort = .becken, gefuehl: String? = nil) {
+    init(datum: Date, meter: Int, dauerSek: Int, borgWert: Int, notizen: String? = nil, ort: Ort = .becken, gefuehl: String? = nil, owner: AppUser? = nil) {
         self.id = UUID()
         self.datum = datum
         self.gesamtMeter = meter
@@ -24,6 +42,7 @@ final class TrainingSession {
         self.ort = ort
         self.gefuehl = gefuehl
         self.intensitaet = nil
+        self.owner = owner
     }
 
     private static func clampBorg(_ value: Int) -> Int {
@@ -174,12 +193,14 @@ final class Competition {
     var ort: String
     var bahn: Bahn
     @Relationship(deleteRule: .cascade) var results: [RaceResult] = []
+    @Relationship(deleteRule: .nullify, inverse: \AppUser.competitions) var owner: AppUser?
 
-    init(datum: Date, name: String, ort: String = "", bahn: Bahn = .scm25) {
+    init(datum: Date, name: String, ort: String = "", bahn: Bahn = .scm25, owner: AppUser? = nil) {
         self.datum = datum
         self.name = name
         self.ort = ort
         self.bahn = bahn
+        self.owner = owner
     }
 }
 
