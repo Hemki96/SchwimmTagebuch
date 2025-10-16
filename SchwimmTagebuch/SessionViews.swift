@@ -5,6 +5,7 @@ struct SessionDetailView: View {
     @Environment(\.modelContext) private var context
     @Bindable var session: TrainingSession
     @State private var zeigtSetEditor = false
+    @AppStorage(SettingsKeys.showEquipmentBadges) private var showEquipmentBadges = true
 
     var body: some View {
         Form {
@@ -37,6 +38,20 @@ struct SessionDetailView: View {
                             VStack(alignment: .leading) {
                                 Text(set.titel).font(.headline)
                                 Text("\(set.wiederholungen)×\(set.distanzProWdh) m @ \(set.intervallSek)s").font(.footnote)
+                                if showEquipmentBadges {
+                                    let equipmentTitel = set.equipment.map { TrainingEquipment(rawValue: $0)?.titel ?? $0 }
+                                    if !equipmentTitel.isEmpty {
+                                        Text(equipmentTitel.joined(separator: ", "))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    let fokusTitel = set.technikSchwerpunkte.map { TechniqueFocus(rawValue: $0)?.titel ?? $0 }
+                                    if !fokusTitel.isEmpty {
+                                        Text(fokusTitel.joined(separator: ", "))
+                                            .font(.caption2)
+                                            .foregroundStyle(.teal)
+                                    }
+                                }
                             }
                         }
                     }
@@ -68,6 +83,35 @@ struct SetDetailView: View {
                 Stepper("Intervall (s): \(set.intervallSek)", value: $set.intervallSek, in: 10...600)
                 TextField("Kommentar", text: Binding($set.kommentar, default: ""), axis: .vertical)
             }
+            Section("Equipment") {
+                ForEach(TrainingEquipment.allCases) { option in
+                    Toggle(isOn: Binding(
+                        get: { set.equipment.contains(option.rawValue) },
+                        set: { set.equipment.updatePresence(of: option.rawValue, include: $0) }
+                    )) {
+                        Label(option.titel, systemImage: option.systemImage)
+                    }
+                }
+            }
+            Section("Technik-Fokus") {
+                if set.technikSchwerpunkte.isEmpty {
+                    Text("Wähle die Schwerpunkte dieses Sets aus.")
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(TechniqueFocus.allCases) { fokus in
+                    Toggle(isOn: Binding(
+                        get: { set.technikSchwerpunkte.contains(fokus.rawValue) },
+                        set: { set.technikSchwerpunkte.updatePresence(of: fokus.rawValue, include: $0) }
+                    )) {
+                        VStack(alignment: .leading) {
+                            Text(fokus.titel)
+                            Text(fokus.beschreibung)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
             Section("Splits (s)") {
                 ForEach(set.laps) { lap in
                     HStack {
@@ -95,6 +139,16 @@ struct SessionEditorSheet: View {
 
     init(initialDate: Date = Date()) {
         _datum = State(initialValue: initialDate)
+        let defaults = UserDefaults.standard
+        let meters = defaults.integer(forKey: SettingsKeys.defaultSessionMeters)
+        _meter = State(initialValue: meters > 0 ? meters : 3000)
+        let duration = defaults.integer(forKey: SettingsKeys.defaultSessionDuration)
+        _dauerMin = State(initialValue: duration > 0 ? duration : 60)
+        let borgDefault = defaults.integer(forKey: SettingsKeys.defaultSessionBorg)
+        _borg = State(initialValue: borgDefault > 0 ? borgDefault : 5)
+        if let ortRaw = defaults.string(forKey: SettingsKeys.defaultSessionOrt), let defaultOrt = Ort(rawValue: ortRaw) {
+            _ort = State(initialValue: defaultOrt)
+        }
     }
 
     var body: some View {
@@ -143,15 +197,56 @@ struct SetEditorSheet: View {
     @State private var dist = 100
     @State private var interv = 100
     @State private var kommentar = ""
+    @State private var selectedEquipment: Set<TrainingEquipment> = []
+    @State private var selectedFokus: Set<TechniqueFocus> = []
 
     var body: some View {
         NavigationStack {
             Form {
-                TextField("Titel", text: $titel)
-                Stepper("Wiederholungen: \(wdh)", value: $wdh, in: 1...200)
-                Stepper("Distanz/Wdh (m): \(dist)", value: $dist, in: 25...2000, step: 25)
-                Stepper("Intervall (s): \(interv)", value: $interv, in: 10...600)
-                TextField("Kommentar", text: $kommentar, axis: .vertical)
+                Section("Details") {
+                    TextField("Titel", text: $titel)
+                    Stepper("Wiederholungen: \(wdh)", value: $wdh, in: 1...200)
+                    Stepper("Distanz/Wdh (m): \(dist)", value: $dist, in: 25...2000, step: 25)
+                    Stepper("Intervall (s): \(interv)", value: $interv, in: 10...600)
+                    TextField("Kommentar", text: $kommentar, axis: .vertical)
+                }
+                Section("Equipment") {
+                    ForEach(TrainingEquipment.allCases) { option in
+                        Toggle(isOn: Binding(
+                            get: { selectedEquipment.contains(option) },
+                            set: { isOn in
+                                if isOn {
+                                    selectedEquipment.insert(option)
+                                } else {
+                                    selectedEquipment.remove(option)
+                                }
+                            }
+                        )) {
+                            Label(option.titel, systemImage: option.systemImage)
+                        }
+                    }
+                }
+                Section("Technik-Fokus") {
+                    ForEach(TechniqueFocus.allCases) { fokus in
+                        Toggle(isOn: Binding(
+                            get: { selectedFokus.contains(fokus) },
+                            set: { include in
+                                if include {
+                                    selectedFokus.insert(fokus)
+                                } else {
+                                    selectedFokus.remove(fokus)
+                                }
+                            }
+                        )) {
+                            VStack(alignment: .leading) {
+                                Text(fokus.titel)
+                                Text(fokus.beschreibung)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
             }
             .navigationTitle("Set hinzufügen")
             .toolbar {
@@ -161,7 +256,16 @@ struct SetEditorSheet: View {
         }
     }
     private func speichere() {
-        let neu = WorkoutSet(titel: titel, wiederholungen: wdh, distanzProWdh: dist, intervallSek: interv, kommentar: kommentar, session: session)
+        let neu = WorkoutSet(
+            titel: titel,
+            wiederholungen: wdh,
+            distanzProWdh: dist,
+            intervallSek: interv,
+            equipment: selectedEquipment.map { $0.rawValue }.sorted(),
+            technikSchwerpunkte: selectedFokus.map { $0.rawValue }.sorted(),
+            kommentar: kommentar,
+            session: session
+        )
         session.sets.append(neu)
         try? session.modelContext?.save()
         dismiss()

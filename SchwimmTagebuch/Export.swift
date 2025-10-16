@@ -6,17 +6,57 @@ struct ExportSection: View {
     @Query private var competitions: [Competition]
     @State private var zeigtShare = false
     @State private var exportURL: URL?
+    @State private var zeigtFehler = false
+    @State private var fehlertext = ""
+    @AppStorage(SettingsKeys.autoExportEnabled) private var autoExportEnabled = false
+    @AppStorage(SettingsKeys.autoExportFormat) private var autoExportFormatRaw = ExportFormat.json.rawValue
+    @AppStorage(SettingsKeys.lastBackupISO) private var lastBackupISO = ""
+
+    private var autoExportFormat: ExportFormat { ExportFormat(rawValue: autoExportFormatRaw) ?? .json }
+    private var letzteSicherungstext: String {
+        guard let date = ISO8601DateFormatter().date(from: lastBackupISO) else { return "Noch keine Sicherung" }
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
 
     var body: some View {
-        Card("Export") {
-            HStack {
-                Button { exportCSV() } label: { Label("CSV exportieren", systemImage: "square.and.arrow.up") }
-                Spacer()
-                Button { exportJSON() } label: { Label("JSON exportieren", systemImage: "square.and.arrow.up.on.square") }
+        Card("Export & Sync") {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Button { exportCSV() } label: { Label("CSV exportieren", systemImage: "square.and.arrow.up") }
+                    Spacer()
+                    Button { exportJSON() } label: { Label("JSON exportieren", systemImage: "square.and.arrow.up.on.square") }
+                }
+                Divider()
+                Toggle("Automatische Sicherung aktiv", isOn: $autoExportEnabled)
+                Picker("Standardformat", selection: $autoExportFormatRaw) {
+                    ForEach(ExportFormat.allCases) { format in
+                        Text(format.titel).tag(format.rawValue)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Button { fuehreSchnellSyncAus() } label: {
+                    Label("Jetzt synchronisieren", systemImage: "arrow.clockwise")
+                }
+                .disabled(sessions.isEmpty && competitions.isEmpty)
+                Text("Letzte Sicherung: \(letzteSicherungstext)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .sheet(isPresented: $zeigtShare) {
             if let url = exportURL { ShareSheet(activityItems: [url]) }
+        }
+        .alert("Export fehlgeschlagen", isPresented: $zeigtFehler) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(fehlertext)
+        }
+        .onChange(of: autoExportEnabled) { _, neu in
+            guard neu else { return }
+            fuehreSchnellSyncAus()
         }
     }
 
@@ -39,6 +79,27 @@ struct ExportSection: View {
         exportURL = url
         zeigtShare = true
     }
+
+    private func fuehreSchnellSyncAus() {
+        do {
+            let url = try AutoBackupService.performBackup(
+                sessions: sessions,
+                competitions: competitions,
+                format: autoExportFormat
+            )
+            lastBackupISO = ISO8601DateFormatter().string(from: Date())
+            if autoExportEnabled {
+                // Silent Sync: kein Share-Sheet, aber Erfolg melden über Text.
+                exportURL = nil
+            } else {
+                exportURL = url
+                zeigtShare = true
+            }
+        } catch {
+            fehlertext = error.localizedDescription
+            zeigtFehler = true
+        }
+    }
 }
 
 struct ShareSheet: UIViewControllerRepresentable {
@@ -49,12 +110,14 @@ struct ShareSheet: UIViewControllerRepresentable {
 
 enum CSVBuilder {
     static func trainingsCSV(_ list: [TrainingSession]) -> String {
-        var lines = ["date,totalMeters,totalMinutes,borg,location,feeling,notes"]
+        var lines = ["date,totalMeters,totalMinutes,borg,location,feeling,notes,equipment,technique"]
         let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd"
         for s in list {
             let date = df.string(from: s.datum)
             let mins = s.gesamtDauerSek/60
-            let row = "\(date),\(s.gesamtMeter),\(mins),\(s.borgWert),\(s.ort.titel),\(escapeCSV(s.gefuehl ?? "")),\(escapeCSV(s.notizen ?? ""))"
+            let equipment = Set(s.sets.flatMap { $0.equipment }).compactMap { TrainingEquipment(rawValue: $0)?.titel ?? $0 }.sorted().joined(separator: "; ")
+            let technik = Set(s.sets.flatMap { $0.technikSchwerpunkte }).compactMap { TechniqueFocus(rawValue: $0)?.titel ?? $0 }.sorted().joined(separator: "; ")
+            let row = "\(date),\(s.gesamtMeter),\(mins),\(s.borgWert),\(s.ort.titel),\(escapeCSV(s.gefuehl ?? "")),\(escapeCSV(s.notizen ?? "")),\(escapeCSV(equipment)),\(escapeCSV(technik))"
             lines.append(row)
         }
         return lines.joined(separator: "\n")
@@ -84,8 +147,8 @@ enum CSVBuilder {
 
 enum JSONBuilder {
     static func exportJSON(sessions: [TrainingSession], competitions: [Competition]) -> String {
-        struct S: Codable { let date: String; let totalMeters: Int; let totalDurationSec: Int; let borg: Int; let location: String; let feeling: String; let notes: String; let sets: [SetDTO] }
-        struct SetDTO: Codable { let title: String; let reps: Int; let distancePerRep: Int; let intervalSec: Int; let laps: [Int] }
+        struct S: Codable { let date: String; let totalMeters: Int; let totalDurationSec: Int; let borg: Int; let location: String; let feeling: String; let notes: String; let equipment: [String]; let technique: [String]; let sets: [SetDTO] }
+        struct SetDTO: Codable { let title: String; let reps: Int; let distancePerRep: Int; let intervalSec: Int; let equipment: [String]; let technique: [String]; let laps: [Int] }
         struct C: Codable { let date: String; let name: String; let venue: String; let course: String; let results: [R] }
         struct R: Codable { let stroke: String; let distance: Int; let timeSec: Int; let isPB: Bool }
         struct Root: Codable { let trainings: [S]; let competitions: [C] }
@@ -93,8 +156,12 @@ enum JSONBuilder {
         let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd"
         let trainings: [S] = sessions.map { s in
             let sets: [SetDTO] = s.sets.map { set in
-                SetDTO(title: set.titel, reps: set.wiederholungen, distancePerRep: set.distanzProWdh, intervalSec: set.intervallSek, laps: set.laps.map { $0.splitSek })
+                let equipment = set.equipment.compactMap { TrainingEquipment(rawValue: $0)?.titel ?? $0 }
+                let technik = set.technikSchwerpunkte.compactMap { TechniqueFocus(rawValue: $0)?.titel ?? $0 }
+                return SetDTO(title: set.titel, reps: set.wiederholungen, distancePerRep: set.distanzProWdh, intervalSec: set.intervallSek, equipment: equipment, technique: technik, laps: set.laps.map { $0.splitSek })
             }
+            let equipment = Array(Set(s.sets.flatMap { $0.equipment.compactMap { TrainingEquipment(rawValue: $0)?.titel ?? $0 } })).sorted()
+            let technik = Array(Set(s.sets.flatMap { $0.technikSchwerpunkte.compactMap { TechniqueFocus(rawValue: $0)?.titel ?? $0 } })).sorted()
             return S(
                 date: df.string(from: s.datum),
                 totalMeters: s.gesamtMeter,
@@ -103,6 +170,8 @@ enum JSONBuilder {
                 location: s.ort.titel,
                 feeling: s.gefuehl ?? "",
                 notes: s.notizen ?? "",
+                equipment: equipment,
+                technique: technik,
                 sets: sets
             )
         }

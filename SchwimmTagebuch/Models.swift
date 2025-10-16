@@ -58,19 +58,99 @@ final class WorkoutSet {
     var wiederholungen: Int
     var distanzProWdh: Int
     var intervallSek: Int
-    var equipment: [String]
+    var equipment: [String] = []
+    var technikSchwerpunkte: [String] = []
     var kommentar: String?
     @Relationship(deleteRule: .cascade, inverse: \SetLap.set) var laps: [SetLap] = []
     var session: TrainingSession?
 
-    init(titel: String, wiederholungen: Int, distanzProWdh: Int, intervallSek: Int, equipment: [String] = [], kommentar: String? = nil, session: TrainingSession? = nil) {
+    init(titel: String, wiederholungen: Int, distanzProWdh: Int, intervallSek: Int, equipment: [String] = [], technikSchwerpunkte: [String] = [], kommentar: String? = nil, session: TrainingSession? = nil) {
         self.titel = titel
         self.wiederholungen = wiederholungen
         self.distanzProWdh = distanzProWdh
         self.intervallSek = intervallSek
         self.equipment = equipment
+        self.technikSchwerpunkte = technikSchwerpunkte
         self.kommentar = kommentar
         self.session = session
+    }
+}
+
+enum TrainingEquipment: String, Codable, CaseIterable, Identifiable {
+    case pullbuoy
+    case paddles
+    case fins
+    case snorkel
+    case kickboard
+    case resistanceBand
+    case parachute
+    case tempoTrainer
+
+    var id: String { rawValue }
+
+    var titel: String {
+        switch self {
+        case .pullbuoy: return "Pullbuoy"
+        case .paddles: return "Paddles"
+        case .fins: return "Flossen"
+        case .snorkel: return "Schnorchel"
+        case .kickboard: return "Brett"
+        case .resistanceBand: return "Band"
+        case .parachute: return "Fallschirm"
+        case .tempoTrainer: return "Tempo-Trainer"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .pullbuoy: return "figure.pool.swim"
+        case .paddles: return "hand.raised"
+        case .fins: return "sailboat"
+        case .snorkel: return "waveform.path.ecg"
+        case .kickboard: return "rectangle.portrait"
+        case .resistanceBand: return "figure.strengthtraining.traditional"
+        case .parachute: return "wind"
+        case .tempoTrainer: return "metronome"
+        }
+    }
+}
+
+enum TechniqueFocus: String, Codable, CaseIterable, Identifiable {
+    case breathing
+    case kick
+    case catchPhase
+    case turns
+    case starts
+    case paceControl
+    case coordination
+    case openWaterSkills
+
+    var id: String { rawValue }
+
+    var titel: String {
+        switch self {
+        case .breathing: return "Atmung"
+        case .kick: return "Beine"
+        case .catchPhase: return "Zugphase"
+        case .turns: return "Wenden"
+        case .starts: return "Starts"
+        case .paceControl: return "Pace"
+        case .coordination: return "Koordination"
+        case .openWaterSkills: return "Freiwasser"
+        }
+    }
+
+    var beschreibung: String {
+        switch self {
+        case .breathing: return "Atemrhythmus, Bilateralität und Timing."
+        case .kick: return "Kick-Frequenz, Druckphase und Position."
+        case .catchPhase: return "Hoher Ellbogen, Druckrichtung und Abdruck."
+        case .turns: return "Kopflage, Anschlag und Abstoß."
+        case .starts: return "Blockstart, Flugphase und Eintauchwinkel."
+        case .paceControl: return "Gleichmäßige Splits und Intervalltreue."
+        case .coordination: return "Arm-/Beinabstimmung und Rhythmuswechsel."
+        case .openWaterSkills: return "Orientierung, Sighting und Navigationswechsel."
+        }
     }
 }
 
