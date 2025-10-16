@@ -49,12 +49,12 @@ struct ShareSheet: UIViewControllerRepresentable {
 
 enum CSVBuilder {
     static func trainingsCSV(_ list: [TrainingSession]) -> String {
-        var lines = ["date,totalMeters,totalMinutes,intensity,location,notes"]
+        var lines = ["date,totalMeters,totalMinutes,borg,location,feeling,notes"]
         let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd"
         for s in list {
             let date = df.string(from: s.datum)
             let mins = s.gesamtDauerSek/60
-            let row = "\(date),\(s.gesamtMeter),\(mins),\(s.intensitaet.titel),\(s.ort.titel),\(escapeCSV(s.notizen ?? ""))"
+            let row = "\(date),\(s.gesamtMeter),\(mins),\(s.borgWert),\(s.ort.titel),\(escapeCSV(s.gefuehl ?? "")),\(escapeCSV(s.notizen ?? ""))"
             lines.append(row)
         }
         return lines.joined(separator: "\n")
@@ -84,7 +84,7 @@ enum CSVBuilder {
 
 enum JSONBuilder {
     static func exportJSON(sessions: [TrainingSession], competitions: [Competition]) -> String {
-        struct S: Codable { let date: String; let totalMeters: Int; let totalDurationSec: Int; let intensity: String; let location: String; let notes: String; let sets: [SetDTO] }
+        struct S: Codable { let date: String; let totalMeters: Int; let totalDurationSec: Int; let borg: Int; let location: String; let feeling: String; let notes: String; let sets: [SetDTO] }
         struct SetDTO: Codable { let title: String; let reps: Int; let distancePerRep: Int; let intervalSec: Int; let laps: [Int] }
         struct C: Codable { let date: String; let name: String; let venue: String; let course: String; let results: [R] }
         struct R: Codable { let stroke: String; let distance: Int; let timeSec: Int; let isPB: Bool }
@@ -95,7 +95,16 @@ enum JSONBuilder {
             let sets: [SetDTO] = s.sets.map { set in
                 SetDTO(title: set.titel, reps: set.wiederholungen, distancePerRep: set.distanzProWdh, intervalSec: set.intervallSek, laps: set.laps.map { $0.splitSek })
             }
-            return S(date: df.string(from: s.datum), totalMeters: s.gesamtMeter, totalDurationSec: s.gesamtDauerSek, intensity: s.intensitaet.titel, location: s.ort.titel, notes: s.notizen ?? "", sets: sets)
+            return S(
+                date: df.string(from: s.datum),
+                totalMeters: s.gesamtMeter,
+                totalDurationSec: s.gesamtDauerSek,
+                borg: s.borgWert,
+                location: s.ort.titel,
+                feeling: s.gefuehl ?? "",
+                notes: s.notizen ?? "",
+                sets: sets
+            )
         }
         let comps: [C] = competitions.map { c in
             let rs: [R] = c.results.map { r in R(stroke: r.lage.titel, distance: r.distanz, timeSec: r.zeitSek, isPB: r.istPB) }

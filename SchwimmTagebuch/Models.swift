@@ -7,19 +7,27 @@ final class TrainingSession {
     var datum: Date
     var gesamtMeter: Int
     var gesamtDauerSek: Int
-    var intensitaet: Intensitaet
+    var borgWert: Int = 5
+    var intensitaet: Intensitaet?
     var notizen: String?
     var ort: Ort
+    var gefuehl: String?
     @Relationship(deleteRule: .cascade) var sets: [WorkoutSet] = []
 
-    init(datum: Date, meter: Int, dauerSek: Int, intensitaet: Intensitaet, notizen: String? = nil, ort: Ort = .becken) {
+    init(datum: Date, meter: Int, dauerSek: Int, borgWert: Int, notizen: String? = nil, ort: Ort = .becken, gefuehl: String? = nil) {
         self.id = UUID()
         self.datum = datum
         self.gesamtMeter = meter
         self.gesamtDauerSek = dauerSek
-        self.intensitaet = intensitaet
+        self.borgWert = Self.clampBorg(borgWert)
         self.notizen = notizen
         self.ort = ort
+        self.gefuehl = gefuehl
+        self.intensitaet = nil
+    }
+
+    private static func clampBorg(_ value: Int) -> Int {
+        max(1, min(10, value))
     }
 }
 
