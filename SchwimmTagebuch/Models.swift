@@ -7,34 +7,21 @@ final class TrainingSession {
     var datum: Date
     var gesamtMeter: Int
     var gesamtDauerSek: Int
-    var intensitaet: Intensitaet
+    var borgWert: Int
     var notizen: String?
     var ort: Ort
+    var gefuehl: String?
     @Relationship(deleteRule: .cascade) var sets: [WorkoutSet] = []
 
-    init(datum: Date, meter: Int, dauerSek: Int, intensitaet: Intensitaet, notizen: String? = nil, ort: Ort = .becken) {
+    init(datum: Date, meter: Int, dauerSek: Int, borgWert: Int, notizen: String? = nil, ort: Ort = .becken, gefuehl: String? = nil) {
         self.id = UUID()
         self.datum = datum
         self.gesamtMeter = meter
         self.gesamtDauerSek = dauerSek
-        self.intensitaet = intensitaet
+        self.borgWert = min(10, max(1, borgWert))
         self.notizen = notizen
         self.ort = ort
-    }
-}
-
-enum Intensitaet: String, Codable, CaseIterable, Identifiable {
-    case locker, aerob, schwelle, vo2, sprint, regenerativ
-    var id: String { rawValue }
-    var titel: String {
-        switch self {
-        case .locker: return "Locker"
-        case .aerob: return "Aerob"
-        case .schwelle: return "Schwelle"
-        case .vo2: return "VO2max"
-        case .sprint: return "Sprint"
-        case .regenerativ: return "Regenerativ"
-        }
+        self.gefuehl = gefuehl
     }
 }
 

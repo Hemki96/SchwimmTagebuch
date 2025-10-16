@@ -12,9 +12,10 @@ final class SchwimmTagebuchTests: XCTestCase {
             datum: Date(timeIntervalSince1970: 0),
             meter: 2500,
             dauerSek: 3600,
-            intensitaet: .aerob,
+            borgWert: 4,
             notizen: "Langer Satz",
-            ort: .becken
+            ort: .becken,
+            gefuehl: "Gute Wasserlage"
         )
         let comp = Competition(
             datum: Date(timeIntervalSince1970: 86_400),
@@ -34,7 +35,7 @@ final class SchwimmTagebuchTests: XCTestCase {
         // Erste Zeile sind die Header, zweite Zeile enthält unsere Werte
         let trainingZeilen = trainingCSV.split(separator: "\n", omittingEmptySubsequences: false)
         XCTAssertEqual(trainingZeilen.count, 2)
-        XCTAssertEqual(trainingZeilen[1], "1970-01-01,2500,60,Aerob,Becken,Langer Satz")
+        XCTAssertEqual(trainingZeilen[1], "1970-01-01,2500,60,4,Becken,Gute Wasserlage,Langer Satz")
 
         let competitionZeilen = competitionCSV.split(separator: "\n", omittingEmptySubsequences: false)
         XCTAssertEqual(competitionZeilen.count, 2)
@@ -46,9 +47,10 @@ final class SchwimmTagebuchTests: XCTestCase {
             datum: Date(timeIntervalSince1970: 0),
             meter: 3000,
             dauerSek: 4500,
-            intensitaet: .schwelle,
+            borgWert: 6,
             notizen: "Mit Technikanteil",
-            ort: .freiwasser
+            ort: .freiwasser,
+            gefuehl: "Solide"
         )
         let set = WorkoutSet(
             titel: "8×50 Technik",

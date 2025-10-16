@@ -7,7 +7,7 @@ struct WochenStatistik: Identifiable {
     let wochenStart: Date
     let meter: Int
     let dauerSek: Int
-    let nachIntensitaet: [Intensitaet: Int]
+    let durchschnittBorg: Double
 }
 
 struct StatsView: View {
@@ -19,9 +19,9 @@ struct StatsView: View {
         for (start, list) in grouped {
             let meter = list.reduce(0) { $0 + $1.gesamtMeter }
             let dauer = list.reduce(0) { $0 + $1.gesamtDauerSek }
-            var nachInt: [Intensitaet: Int] = [:]
-            for s in list { nachInt[s.intensitaet, default: 0] += s.gesamtMeter }
-            result.append(WochenStatistik(wochenStart: start, meter: meter, dauerSek: dauer, nachIntensitaet: nachInt))
+            let borgSumme = list.reduce(0) { $0 + $1.borgWert }
+            let durchschnitt = list.isEmpty ? 0 : Double(borgSumme) / Double(list.count)
+            result.append(WochenStatistik(wochenStart: start, meter: meter, dauerSek: dauer, durchschnittBorg: durchschnitt))
         }
         return result.sorted { $0.wochenStart < $1.wochenStart }
     }
@@ -36,16 +36,36 @@ struct StatsView: View {
                         }
                         .frame(height: 220)
                     }
-                    Card("Intensitätsverteilung (letzte Woche)") {
-                        if let letzte = wochen.last {
-                            let paare = letzte.nachIntensitaet.map { ($0.key.titel, $0.value) }.sorted { $0.0 < $1.0 }
-                            Chart(paare, id: \.0) { p in
-                                SectorMark(angle: .value("Meter", p.1))
-                                    .annotation(position: .overlay) { Text(p.0).font(.caption2) }
+                    Card("Borg-Intensität je Woche") {
+                        if wochen.isEmpty {
+                            Text("Keine Daten")
+                        } else {
+                            Chart(wochen) { w in
+                                LineMark(
+                                    x: .value("Woche", w.wochenStart, unit: .weekOfYear),
+                                    y: .value("Ø Borg", w.durchschnittBorg)
+                                )
+                                PointMark(
+                                    x: .value("Woche", w.wochenStart, unit: .weekOfYear),
+                                    y: .value("Ø Borg", w.durchschnittBorg)
+                                )
                             }
                             .frame(height: 220)
+                        }
+                    }
+                    Card("Letzte Woche im Blick") {
+                        if let letzte = wochen.last {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Label("\(letzte.meter) m", systemImage: "ruler")
+                                    Spacer()
+                                    Label("\(letzte.dauerSek/60) min", systemImage: "clock")
+                                }
+                                Label(String(format: "Ø Borg %.1f", letzte.durchschnittBorg), systemImage: "heart.fill")
+                                    .foregroundStyle(.pink)
+                            }
                         } else {
-                            Text("Keine Daten")
+                            Text("Noch keine Trainingseinheiten erfasst.")
                         }
                     }
                     ExportSection()

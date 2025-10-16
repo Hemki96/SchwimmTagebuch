@@ -10,17 +10,20 @@ struct SessionDetailView: View {
         Form {
             Section("Übersicht") {
                 DatePicker("Datum", selection: $session.datum, displayedComponents: .date)
-                Stepper("Umfang (m): \(session.gesamtMeter)", value: $session.gesamtMeter, in: 0...60000, step: 50)
-                Stepper("Dauer (min): \(session.gesamtDauerSek/60)", value: Binding(
+                TextField("Umfang (m)", value: $session.gesamtMeter, format: .number)
+                    .keyboardType(.numberPad)
+                TextField("Dauer (min)", value: Binding(
                     get: { session.gesamtDauerSek/60 },
-                    set: { session.gesamtDauerSek = $0*60 }
-                ), in: 0...600)
-                Picker("Intensität", selection: $session.intensitaet) {
-                    ForEach(Intensitaet.allCases) { Text($0.titel).tag($0) }
+                    set: { session.gesamtDauerSek = max(0, $0*60) }
+                ), format: .number)
+                    .keyboardType(.numberPad)
+                Picker("Intensität (Borg 1-10)", selection: $session.borgWert) {
+                    ForEach(1...10, id: \.self) { Text("\($0)").tag($0) }
                 }
                 Picker("Ort", selection: $session.ort) {
                     ForEach(Ort.allCases) { Text($0.titel).tag($0) }
                 }
+                TextField("Eigenes Gefühl", text: Binding($session.gefuehl, default: ""), axis: .vertical)
                 TextField("Notizen", text: Binding($session.notizen, default: ""), axis: .vertical)
             }
             Section("Sets") {
@@ -85,8 +88,9 @@ struct SessionEditorSheet: View {
     @State private var datum: Date
     @State private var meter = 3000
     @State private var dauerMin = 60
-    @State private var intens: Intensitaet = .schwelle
+    @State private var borg = 5
     @State private var ort: Ort = .becken
+    @State private var gefuehl = ""
     @State private var notizen = ""
 
     init(initialDate: Date = Date()) {
@@ -97,10 +101,15 @@ struct SessionEditorSheet: View {
         NavigationStack {
             Form {
                 DatePicker("Datum", selection: $datum, displayedComponents: .date)
-                Stepper("Umfang (m): \(meter)", value: $meter, in: 0...60000, step: 50)
-                Stepper("Dauer (min): \(dauerMin)", value: $dauerMin, in: 0...600)
-                Picker("Intensität", selection: $intens) { ForEach(Intensitaet.allCases) { Text($0.titel).tag($0) } }
+                TextField("Umfang (m)", value: $meter, format: .number)
+                    .keyboardType(.numberPad)
+                TextField("Dauer (min)", value: $dauerMin, format: .number)
+                    .keyboardType(.numberPad)
+                Picker("Intensität (Borg 1-10)", selection: $borg) {
+                    ForEach(1...10, id: \.self) { Text("\($0)").tag($0) }
+                }
                 Picker("Ort", selection: $ort) { ForEach(Ort.allCases) { Text($0.titel).tag($0) } }
+                TextField("Eigenes Gefühl", text: $gefuehl, axis: .vertical)
                 TextField("Notizen", text: $notizen, axis: .vertical)
             }
             .navigationTitle("Training erfassen")
@@ -111,7 +120,15 @@ struct SessionEditorSheet: View {
         }
     }
     private func speichere() {
-        let s = TrainingSession(datum: datum, meter: meter, dauerSek: dauerMin*60, intensitaet: intens, notizen: notizen, ort: ort)
+        let s = TrainingSession(
+            datum: datum,
+            meter: meter,
+            dauerSek: dauerMin*60,
+            borgWert: borg,
+            notizen: notizen.isEmpty ? nil : notizen,
+            ort: ort,
+            gefuehl: gefuehl.isEmpty ? nil : gefuehl
+        )
         context.insert(s)
         try? context.save()
         dismiss()
