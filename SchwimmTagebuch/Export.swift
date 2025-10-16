@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 
 struct ExportSection: View {
+    @Environment(\.currentUser) private var currentUser
     @Query private var sessions: [TrainingSession]
     @Query private var competitions: [Competition]
     @State private var zeigtShare = false
@@ -40,7 +41,7 @@ struct ExportSection: View {
                 Button { fuehreSchnellSyncAus() } label: {
                     Label("Jetzt synchronisieren", systemImage: "arrow.clockwise")
                 }
-                .disabled(sessions.isEmpty && competitions.isEmpty)
+                .disabled(filteredSessions.isEmpty && filteredCompetitions.isEmpty)
                 Text("Letzte Sicherung: \(letzteSicherungstext)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -61,8 +62,8 @@ struct ExportSection: View {
     }
 
     private func exportCSV() {
-        let csvTrain = CSVBuilder.trainingsCSV(sessions)
-        let csvComp = CSVBuilder.wettkampfCSV(competitions)
+        let csvTrain = CSVBuilder.trainingsCSV(filteredSessions)
+        let csvComp = CSVBuilder.wettkampfCSV(filteredCompetitions)
         let tmp = FileManager.default.temporaryDirectory
         let urlTrain = tmp.appendingPathComponent("training.csv")
         let urlComp = tmp.appendingPathComponent("wettkaempfe.csv")
@@ -72,7 +73,7 @@ struct ExportSection: View {
         zeigtShare = true
     }
     private func exportJSON() {
-        let json = JSONBuilder.exportJSON(sessions: sessions, competitions: competitions)
+        let json = JSONBuilder.exportJSON(sessions: filteredSessions, competitions: filteredCompetitions)
         let tmp = FileManager.default.temporaryDirectory
         let url = tmp.appendingPathComponent("export.json")
         try? json.data(using: .utf8)?.write(to: url)
@@ -83,8 +84,8 @@ struct ExportSection: View {
     private func fuehreSchnellSyncAus() {
         do {
             let url = try AutoBackupService.performBackup(
-                sessions: sessions,
-                competitions: competitions,
+                sessions: filteredSessions,
+                competitions: filteredCompetitions,
                 format: autoExportFormat
             )
             lastBackupISO = ISO8601DateFormatter().string(from: Date())
@@ -99,6 +100,16 @@ struct ExportSection: View {
             fehlertext = error.localizedDescription
             zeigtFehler = true
         }
+    }
+
+    private var filteredSessions: [TrainingSession] {
+        guard let userID = currentUser?.id else { return [] }
+        return sessions.filter { $0.owner?.id == userID }
+    }
+
+    private var filteredCompetitions: [Competition] {
+        guard let userID = currentUser?.id else { return [] }
+        return competitions.filter { $0.owner?.id == userID }
     }
 }
 

@@ -3,6 +3,8 @@ import SwiftData
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.currentUser) private var currentUser
+    @Environment(\.logoutAction) private var logoutAction
     @Query private var sessions: [TrainingSession]
     @Query private var competitions: [Competition]
     @State private var zeigtResetAlert = false
@@ -39,6 +41,23 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section("Benutzer") {
+                    if let user = currentUser {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(user.displayName)
+                                .font(.headline)
+                            Text(user.email)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let logoutAction {
+                            Button("Abmelden", role: .destructive, action: logoutAction)
+                        }
+                    } else {
+                        Text("Kein Benutzer angemeldet")
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 Section("Profil & Ziele") {
                     Toggle("Ziel-Tracking aktiv", isOn: $goalTrackingEnabled)
                     if goalTrackingEnabled {
@@ -92,7 +111,7 @@ struct SettingsView: View {
                     } label: {
                         Label("Backup jetzt erstellen", systemImage: "externaldrive")
                     }
-                    .disabled(sessions.isEmpty && competitions.isEmpty)
+                    .disabled(userSessions.isEmpty && userCompetitions.isEmpty)
                     Text("Letzte Sicherung: \(lastBackupDescription)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -124,14 +143,16 @@ struct SettingsView: View {
     }
 
     private func resetData() {
-        for s in sessions { context.delete(s) }
-        for c in competitions { context.delete(c) }
+        let eigeneSessions = userSessions
+        let eigeneWettkaempfe = userCompetitions
+        for s in eigeneSessions { context.delete(s) }
+        for c in eigeneWettkaempfe { context.delete(c) }
         try? context.save()
     }
 
     private func starteBackup() {
         do {
-            let url = try AutoBackupService.performBackup(sessions: sessions, competitions: competitions, format: autoExportFormat)
+            let url = try AutoBackupService.performBackup(sessions: userSessions, competitions: userCompetitions, format: autoExportFormat)
             lastBackupISO = ISO8601DateFormatter().string(from: Date())
             backupURL = url
             zeigtShareSheet = true
@@ -139,5 +160,15 @@ struct SettingsView: View {
             backupFehlerText = error.localizedDescription
             zeigtBackupFehler = true
         }
+    }
+
+    private var userSessions: [TrainingSession] {
+        guard let userID = currentUser?.id else { return [] }
+        return sessions.filter { $0.owner?.id == userID }
+    }
+
+    private var userCompetitions: [Competition] {
+        guard let userID = currentUser?.id else { return [] }
+        return competitions.filter { $0.owner?.id == userID }
     }
 }

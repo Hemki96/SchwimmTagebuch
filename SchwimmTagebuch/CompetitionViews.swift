@@ -42,6 +42,7 @@ struct CompetitionDetailView: View {
 struct CompetitionEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
+    @Environment(\.currentUser) private var currentUser
 
     @State private var datum: Date
     @State private var name = ""
@@ -71,7 +72,8 @@ struct CompetitionEditorSheet: View {
     }
 
     private func speichere() {
-        let neu = Competition(datum: datum, name: name.isEmpty ? "Unbenannter Wettkampf" : name, ort: ort, bahn: bahn)
+        guard let user = currentUser else { return }
+        let neu = Competition(datum: datum, name: name.isEmpty ? "Unbenannter Wettkampf" : name, ort: ort, bahn: bahn, owner: user)
         context.insert(neu)
         try? context.save()
         dismiss()

@@ -15,7 +15,8 @@ struct SchwimmTagebuchApp: App {
             SettingsKeys.defaultSessionMeters: 3000,
             SettingsKeys.defaultSessionDuration: 60,
             SettingsKeys.defaultSessionBorg: 5,
-            SettingsKeys.defaultSessionOrt: Ort.becken.rawValue
+            SettingsKeys.defaultSessionOrt: Ort.becken.rawValue,
+            SessionKeys.currentUserID: ""
         ])
     }
 
@@ -29,7 +30,7 @@ struct SchwimmTagebuchApp: App {
 }
 
 let sharedSchema = Schema([
-    TrainingSession.self, WorkoutSet.self, SetLap.self, Competition.self, RaceResult.self
+    AppUser.self, TrainingSession.self, WorkoutSet.self, SetLap.self, Competition.self, RaceResult.self
 ])
 let sharedContainer: ModelContainer = {
     do {
@@ -41,6 +42,61 @@ let sharedContainer: ModelContainer = {
 }()
 
 struct RootView: View {
+    @Environment(\.modelContext) private var context
+    @AppStorage(SessionKeys.currentUserID) private var storedUserID = ""
+    @State private var currentUser: AppUser?
+    @State private var isLoading = true
+    @State private var showsRegistration = false
+
+    var body: some View {
+        Group {
+            if isLoading {
+                ProgressView("Benutzer wird geladen…")
+            } else if let user = currentUser {
+                MainTabView()
+                    .environment(\.currentUser, user)
+                    .environment(\.logoutAction, logout)
+            } else {
+                LoginView(onLogin: handleLogin, onRegisterRequested: { showsRegistration = true })
+                    .sheet(isPresented: $showsRegistration) {
+                        RegistrationView(onRegister: handleLogin)
+                    }
+            }
+        }
+        .task { await loadStoredUser() }
+    }
+
+    private func loadStoredUser() async {
+        guard isLoading else { return }
+        defer { isLoading = false }
+        guard let id = UUID(uuidString: storedUserID), !storedUserID.isEmpty else { return }
+        let descriptor = FetchDescriptor<AppUser>(
+            predicate: #Predicate { $0.id == id },
+            fetchLimit: 1
+        )
+        if let found = try? context.fetch(descriptor).first {
+            currentUser = found
+        } else {
+            storedUserID = ""
+        }
+    }
+
+    private func handleLogin(_ user: AppUser) {
+        currentUser = user
+        storedUserID = user.id.uuidString
+        isLoading = false
+        showsRegistration = false
+    }
+
+    private func logout() {
+        storedUserID = ""
+        currentUser = nil
+        isLoading = false
+        showsRegistration = false
+    }
+}
+
+struct MainTabView: View {
     var body: some View {
         TabView {
             CalendarView()

@@ -129,6 +129,7 @@ struct SetDetailView: View {
 struct SessionEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
+    @Environment(\.currentUser) private var currentUser
     @State private var datum: Date
     @State private var meter = 3000
     @State private var dauerMin = 60
@@ -174,6 +175,7 @@ struct SessionEditorSheet: View {
         }
     }
     private func speichere() {
+        guard let user = currentUser else { return }
         let s = TrainingSession(
             datum: datum,
             meter: meter,
@@ -181,7 +183,8 @@ struct SessionEditorSheet: View {
             borgWert: borg,
             notizen: notizen.isEmpty ? nil : notizen,
             ort: ort,
-            gefuehl: gefuehl.isEmpty ? nil : gefuehl
+            gefuehl: gefuehl.isEmpty ? nil : gefuehl,
+            owner: user
         )
         context.insert(s)
         try? context.save()
