@@ -5,8 +5,8 @@ enum ReminderService {
     private static let identifier = "weekly.training.reminder"
 
     static func toggleWeeklyReminder(enabled: Bool, weekday: Weekday, goalMeters: Int) async throws {
+        let center = UNUserNotificationCenter.current()
         if enabled {
-            let center = UNUserNotificationCenter.current()
             let status = await center.notificationSettings()
             switch status.authorizationStatus {
             case .notDetermined:
@@ -19,15 +19,18 @@ enum ReminderService {
             default:
                 break
             }
-            try await scheduleReminder(on: weekday, goalMeters: goalMeters)
+            try await scheduleReminder(on: weekday, goalMeters: goalMeters, center: center)
         } else {
-            await cancelReminder()
+            cancelReminder(center: center)
         }
     }
 
     static func scheduleReminder(on weekday: Weekday, goalMeters: Int) async throws {
-        let center = UNUserNotificationCenter.current()
-        await cancelReminder()
+        try await scheduleReminder(on: weekday, goalMeters: goalMeters, center: UNUserNotificationCenter.current())
+    }
+
+    private static func scheduleReminder(on weekday: Weekday, goalMeters: Int, center: UNUserNotificationCenter) async throws {
+        cancelReminder(center: center)
 
         var dateComponents = DateComponents()
         dateComponents.weekday = weekday.rawValue
@@ -42,12 +45,27 @@ enum ReminderService {
         let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
         let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
 
-        try await center.add(request)
+        try await add(request: request, center: center)
     }
 
-    static func cancelReminder() async {
-        let center = UNUserNotificationCenter.current()
-        await center.removePendingNotificationRequests(withIdentifiers: [identifier])
+    static func cancelReminder() {
+        cancelReminder(center: UNUserNotificationCenter.current())
+    }
+
+    private static func cancelReminder(center: UNUserNotificationCenter) {
+        center.removePendingNotificationRequests(withIdentifiers: [identifier])
+    }
+
+    private static func add(request: UNNotificationRequest, center: UNUserNotificationCenter) async throws {
+        try await withCheckedThrowingContinuation { continuation in
+            center.add(request) { error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: ())
+                }
+            }
+        }
     }
 
     enum ReminderError: LocalizedError {

@@ -16,6 +16,9 @@ struct SchwimmTagebuchApp: App {
             SettingsKeys.defaultSessionDuration: 60,
             SettingsKeys.defaultSessionBorg: 5,
             SettingsKeys.defaultSessionOrt: Ort.becken.rawValue,
+            SettingsKeys.defaultSessionIntensitaet: "",
+            SettingsKeys.cloudSyncEnabled: false,
+            SettingsKeys.lastBackupISO: "",
             SessionKeys.currentUserID: ""
         ])
     }
