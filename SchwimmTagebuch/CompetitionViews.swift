@@ -24,7 +24,7 @@ struct CompetitionDetailView: View {
                         HStack {
                             Text("\(r.distanz) m \(r.lage.titel)")
                             Spacer()
-                            Text(Zeit.formatSek(r.zeitSek))
+                            Text(Zeit.formatSek(r.zeitSek, hundertstel: r.zeitHundertstel))
                             if r.istPB { Image(systemName: "star.fill").foregroundStyle(.yellow) }
                         }
                     }
@@ -93,14 +93,18 @@ struct RaceResultEditorSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Picker("Lage", selection: $lage) { ForEach(Lage.allCases) { Text($0.titel).tag($0) } }
-                Stepper("Distanz (m): \(distanz)", value: $distanz, in: 25...1500, step: 25)
-                HStack {
-                    Stepper("Min: \(zeitMin)", value: $zeitMin, in: 0...59)
-                    Stepper("Sek: \(zeitSek)", value: $zeitSek, in: 0...59)
-                    Stepper("Hundertstel: \(zeitHund)", value: $zeitHund, in: 0...99)
+                Section("Rennen") {
+                    Picker("Lage", selection: $lage) { ForEach(Lage.allCases) { Text($0.titel).tag($0) } }
+                    Stepper("Distanz (m): \(distanz)", value: $distanz, in: 25...1500, step: 25)
                 }
-                Toggle("Persönliche Bestzeit", isOn: $istPB)
+
+                Section("Zeit") {
+                    RaceTimeInputView(minuten: $zeitMin, sekunden: $zeitSek, hundertstel: $zeitHund)
+                }
+
+                Section {
+                    Toggle("Persönliche Bestzeit", isOn: $istPB)
+                }
             }
             .navigationTitle("Ergebnis erfassen")
             .toolbar {
@@ -111,11 +115,72 @@ struct RaceResultEditorSheet: View {
     }
     private func speichere() {
         let totalSek = zeitMin*60 + zeitSek
-        let r = RaceResult(lage: lage, distanz: distanz, zeitSek: totalSek)
+        let r = RaceResult(lage: lage, distanz: distanz, zeitSek: totalSek, zeitHundertstel: zeitHund)
         r.istPB = istPB
         r.competition = comp
         comp.results.append(r)
         try? comp.modelContext?.save()
         dismiss()
+    }
+}
+
+private struct RaceTimeInputView: View {
+    @Binding var minuten: Int
+    @Binding var sekunden: Int
+    @Binding var hundertstel: Int
+
+    private var anzeigetext: String {
+        Zeit.formatSek(minuten * 60 + sekunden, hundertstel: hundertstel)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Gesamtzeit")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(anzeigetext)
+                    .font(.system(.title2, design: .rounded))
+                    .fontWeight(.semibold)
+                    .monospacedDigit()
+            }
+
+            HStack(spacing: 12) {
+                TimeComponentStepper(title: "Minuten", value: $minuten, range: 0...59)
+                TimeComponentStepper(title: "Sekunden", value: $sekunden, range: 0...59)
+                TimeComponentStepper(title: "Hundertstel", value: $hundertstel, range: 0...99)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+private struct TimeComponentStepper: View {
+    let title: String
+    @Binding var value: Int
+    let range: ClosedRange<Int>
+
+    private var format: String {
+        range.upperBound >= 100 ? "%03d" : "%02d"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Stepper(value: $value, in: range, step: 1) {
+                Text(String(format: format, value))
+                    .font(.title3.monospacedDigit())
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(.ultraThinMaterial)
+            )
+        }
     }
 }

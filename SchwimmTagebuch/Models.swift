@@ -221,16 +221,18 @@ final class RaceResult {
     var lage: Lage
     var distanz: Int
     var zeitSek: Int
+    var zeitHundertstel: Int = 0
     var lauf: Int?
     var bahn: Int?
     var platz: Int?
     var istPB: Bool
     var competition: Competition?
 
-    init(lage: Lage, distanz: Int, zeitSek: Int, istPB: Bool = false, competition: Competition? = nil) {
+    init(lage: Lage, distanz: Int, zeitSek: Int, zeitHundertstel: Int = 0, istPB: Bool = false, competition: Competition? = nil) {
         self.lage = lage
         self.distanz = distanz
         self.zeitSek = zeitSek
+        self.zeitHundertstel = zeitHundertstel
         self.istPB = istPB
         self.competition = competition
     }
