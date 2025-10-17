@@ -21,7 +21,6 @@ struct CalendarView: View {
                 let normalisiert = kalender.startOfDay(for: newValue)
                 selectedDate = normalisiert
                 angezeigterMonat = kalender.date(from: kalender.dateComponents([.year, .month], from: normalisiert)) ?? normalisiert
-                stelleTrainingseinheitSicher(fuer: normalisiert)
             }
         )
     }
@@ -102,7 +101,13 @@ struct CalendarView: View {
                         displayedMonth: $angezeigterMonat,
                         calendar: kalender,
                         trainingstage: trainingstage,
-                        wettkampfTage: wettkampfTage
+                        wettkampfTage: wettkampfTage,
+                        onDayDoubleTap: { datum in
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                selectedDateBinding.wrappedValue = datum
+                            }
+                            stelleTrainingseinheitSicher(fuer: kalender.startOfDay(for: datum))
+                        }
                     )
                     .glassCard(contentPadding: 12)
                 } header: {
@@ -212,6 +217,7 @@ struct CalendarMonthView: View {
     let calendar: Calendar
     let trainingstage: Set<Date>
     let wettkampfTage: Set<Date>
+    let onDayDoubleTap: (Date) -> Void
 
     private var tageDesMonats: [Date?] {
         guard
@@ -301,12 +307,16 @@ struct CalendarMonthView: View {
                             calendar: calendar,
                             isSelected: calendar.isDate(datum, inSameDayAs: selectedDate),
                             hasTraining: trainingstage.contains(calendar.startOfDay(for: datum)),
-                            hasCompetition: wettkampfTage.contains(calendar.startOfDay(for: datum))
-                        ) {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                selectedDate = calendar.startOfDay(for: datum)
+                            hasCompetition: wettkampfTage.contains(calendar.startOfDay(for: datum)),
+                            onSelect: {
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    selectedDate = calendar.startOfDay(for: datum)
+                                }
+                            },
+                            onDoubleTap: {
+                                onDayDoubleTap(datum)
                             }
-                        }
+                        )
                     } else {
                         Color.clear.frame(height: 56)
                     }
@@ -338,7 +348,8 @@ private struct CalendarDayButton: View {
     let isSelected: Bool
     let hasTraining: Bool
     let hasCompetition: Bool
-    let action: () -> Void
+    let onSelect: () -> Void
+    let onDoubleTap: () -> Void
 
     private var tagNummer: String {
         let tag = calendar.component(.day, from: date)
@@ -346,41 +357,46 @@ private struct CalendarDayButton: View {
     }
 
     var body: some View {
-        Button(action: action) {
-            VStack(spacing: 6) {
-                ZStack {
-                    Circle()
-                        .fill(isSelected ? AppTheme.accent : .clear)
-                        .overlay(
-                            Circle()
-                                .stroke(AppTheme.accent, lineWidth: (!isSelected && calendar.isDateInToday(date)) ? 1.5 : 0)
-                        )
-                        .frame(width: 38, height: 38)
-
-                    Text(tagNummer)
-                        .font(.body.weight(.semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(isSelected ? Color.white : Color.primary)
-                }
-
-                HStack(spacing: 4) {
-                    if hasTraining {
+        VStack(spacing: 6) {
+            ZStack {
+                Circle()
+                    .fill(isSelected ? AppTheme.accent : .clear)
+                    .overlay(
                         Circle()
-                            .fill(AppTheme.accent)
-                            .frame(width: 6, height: 6)
-                    }
-                    if hasCompetition {
-                        Circle()
-                            .fill(Color.orange)
-                            .frame(width: 6, height: 6)
-                    }
-                }
-                .frame(height: 8)
+                            .stroke(AppTheme.accent, lineWidth: (!isSelected && calendar.isDateInToday(date)) ? 1.5 : 0)
+                    )
+                    .frame(width: 38, height: 38)
+
+                Text(tagNummer)
+                    .font(.body.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(isSelected ? Color.white : Color.primary)
             }
-            .frame(maxWidth: .infinity, minHeight: 56)
-            .contentShape(Rectangle())
+
+            HStack(spacing: 4) {
+                if hasTraining {
+                    Circle()
+                        .fill(AppTheme.accent)
+                        .frame(width: 6, height: 6)
+                }
+                if hasCompetition {
+                    Circle()
+                        .fill(Color.orange)
+                        .frame(width: 6, height: 6)
+                }
+            }
+            .frame(height: 8)
         }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, minHeight: 56)
+        .contentShape(Rectangle())
+        .highPriorityGesture(
+            TapGesture(count: 2)
+                .onEnded { onDoubleTap() }
+        )
+        .gesture(
+            TapGesture()
+                .onEnded { onSelect() }
+        )
     }
 }
 
