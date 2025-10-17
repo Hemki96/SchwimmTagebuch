@@ -2,10 +2,15 @@ import SwiftUI
 
 @frozen
 enum Zeit {
-    static func formatSek(_ s: Int) -> String {
+    static func formatSek(_ s: Int, hundertstel: Int = 0) -> String {
         let m = s / 60
         let sec = s % 60
-        return String(format: "%d:%02d", m, sec)
+        let cappedHundertstel = max(0, min(99, hundertstel))
+        if cappedHundertstel == 0 {
+            return String(format: "%d:%02d", m, sec)
+        } else {
+            return String(format: "%d:%02d,%02d", m, sec, cappedHundertstel)
+        }
     }
 }
 

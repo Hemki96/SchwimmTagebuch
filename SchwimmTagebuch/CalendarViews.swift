@@ -7,6 +7,7 @@ struct CalendarView: View {
     @Query(sort: \TrainingSession.datum, order: .reverse) private var sessions: [TrainingSession]
     @Query(sort: \Competition.datum, order: .reverse) private var competitions: [Competition]
     @State private var selectedDate = Calendar.current.startOfDay(for: Date())
+    @State private var angezeigterMonat = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: Date())) ?? Date()
     @State private var zeigtTrainingEditor = false
     @State private var zeigtWettkampfEditor = false
     @State private var hatInitialCheckAusgefuehrt = false
@@ -19,7 +20,7 @@ struct CalendarView: View {
             set: { newValue in
                 let normalisiert = kalender.startOfDay(for: newValue)
                 selectedDate = normalisiert
-                stelleTrainingseinheitSicher(fuer: normalisiert)
+                angezeigterMonat = kalender.date(from: kalender.dateComponents([.year, .month], from: normalisiert)) ?? normalisiert
             }
         )
     }
@@ -40,6 +41,14 @@ struct CalendarView: View {
 
     private var wettkaempfeAmTag: [Competition] {
         userCompetitions.filter { kalender.isDate($0.datum, inSameDayAs: selectedDate) }
+    }
+
+    private var trainingstage: Set<Date> {
+        Set(userSessions.map { kalender.startOfDay(for: $0.datum) })
+    }
+
+    private var wettkampfTage: Set<Date> {
+        Set(userCompetitions.map { kalender.startOfDay(for: $0.datum) })
     }
 
     private var aktuelleWochenStatistik: (meter: Int, minuten: Int, sessions: Int, durchschnittBorg: Double, gefuehle: [String])? {
@@ -87,10 +96,20 @@ struct CalendarView: View {
                 }
 
                 Section {
-                    DatePicker("Datum auswählen", selection: selectedDateBinding, displayedComponents: .date)
-                        .datePickerStyle(.graphical)
-                        .labelsHidden()
-                        .glassCard(contentPadding: 12)
+                    CalendarMonthView(
+                        selectedDate: selectedDateBinding,
+                        displayedMonth: $angezeigterMonat,
+                        calendar: kalender,
+                        trainingstage: trainingstage,
+                        wettkampfTage: wettkampfTage,
+                        onDayDoubleTap: { datum in
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                selectedDateBinding.wrappedValue = datum
+                            }
+                            stelleTrainingseinheitSicher(fuer: kalender.startOfDay(for: datum))
+                        }
+                    )
+                    .glassCard(contentPadding: 12)
                 } header: {
                     SectionHeaderLabel("Datum auswählen", systemImage: "calendar")
                 }
@@ -189,6 +208,215 @@ struct CalendarView: View {
         let zuLoeschen = offsets.map { liste[$0] }
         zuLoeschen.forEach(context.delete)
         try? context.save()
+    }
+}
+
+struct CalendarMonthView: View {
+    @Binding var selectedDate: Date
+    @Binding var displayedMonth: Date
+    let calendar: Calendar
+    let trainingstage: Set<Date>
+    let wettkampfTage: Set<Date>
+    let onDayDoubleTap: (Date) -> Void
+
+    private var tageDesMonats: [Date?] {
+        guard
+            let monatsIntervall = calendar.dateInterval(of: .month, for: displayedMonth),
+            let tage = calendar.range(of: .day, in: .month, for: monatsIntervall.start)
+        else { return [] }
+
+        var werte: [Date?] = []
+        let ersterWochentag = calendar.component(.weekday, from: monatsIntervall.start)
+        let offset = ((ersterWochentag - calendar.firstWeekday) + 7) % 7
+        werte.append(contentsOf: Array(repeating: nil, count: offset))
+
+        for tag in tage {
+            if let datum = calendar.date(byAdding: .day, value: tag - 1, to: monatsIntervall.start) {
+                werte.append(datum)
+            }
+        }
+
+        let rest = werte.count % 7
+        if rest != 0 {
+            werte.append(contentsOf: Array(repeating: nil, count: 7 - rest))
+        }
+
+        return werte
+    }
+
+    private var wochentagsSymbole: [String] {
+        var symbole = calendar.veryShortWeekdaySymbols
+        let startIndex = (calendar.firstWeekday - 1 + symbole.count) % symbole.count
+        if startIndex > 0 {
+            let prefix = symbole[..<startIndex]
+            symbole.removeFirst(startIndex)
+            symbole.append(contentsOf: prefix)
+        }
+        return symbole
+    }
+
+    private var monatsTitel: String {
+        displayedMonth.formatted(.dateTime.month(.wide).year())
+    }
+
+    var body: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Button {
+                    verschiebeMonat(-1)
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.title3.weight(.semibold))
+                        .padding(8)
+                        .background(Circle().fill(.thinMaterial))
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                Text(monatsTitel.capitalized)
+                    .font(.title3.weight(.semibold))
+
+                Spacer()
+
+                Button {
+                    verschiebeMonat(1)
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.title3.weight(.semibold))
+                        .padding(8)
+                        .background(Circle().fill(.thinMaterial))
+                }
+                .buttonStyle(.plain)
+            }
+
+            HStack {
+                ForEach(wochentagsSymbole, id: \.self) { symbol in
+                    Text(symbol)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 7), spacing: 12) {
+                ForEach(Array(tageDesMonats.enumerated()), id: \.offset) { _, datum in
+                    if let datum {
+                        CalendarDayButton(
+                            date: datum,
+                            calendar: calendar,
+                            isSelected: calendar.isDate(datum, inSameDayAs: selectedDate),
+                            hasTraining: trainingstage.contains(calendar.startOfDay(for: datum)),
+                            hasCompetition: wettkampfTage.contains(calendar.startOfDay(for: datum)),
+                            onSelect: {
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    selectedDate = calendar.startOfDay(for: datum)
+                                }
+                            },
+                            onDoubleTap: {
+                                onDayDoubleTap(datum)
+                            }
+                        )
+                    } else {
+                        Color.clear.frame(height: 56)
+                    }
+                }
+            }
+
+            HStack(spacing: 16) {
+                KalenderLegendePill(farbe: AppTheme.accent, titel: "Training")
+                KalenderLegendePill(farbe: .orange, titel: "Wettkampf")
+                Spacer()
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    private func verschiebeMonat(_ delta: Int) {
+        guard let neuerMonat = calendar.date(byAdding: DateComponents(month: delta), to: displayedMonth) else { return }
+        let normalisiert = calendar.date(from: calendar.dateComponents([.year, .month], from: neuerMonat)) ?? neuerMonat
+        withAnimation(.easeInOut(duration: 0.2)) {
+            displayedMonth = normalisiert
+        }
+    }
+}
+
+private struct CalendarDayButton: View {
+    let date: Date
+    let calendar: Calendar
+    let isSelected: Bool
+    let hasTraining: Bool
+    let hasCompetition: Bool
+    let onSelect: () -> Void
+    let onDoubleTap: () -> Void
+
+    private var tagNummer: String {
+        let tag = calendar.component(.day, from: date)
+        return String(tag)
+    }
+
+    var body: some View {
+        VStack(spacing: 6) {
+            ZStack {
+                Circle()
+                    .fill(isSelected ? AppTheme.accent : .clear)
+                    .overlay(
+                        Circle()
+                            .stroke(AppTheme.accent, lineWidth: (!isSelected && calendar.isDateInToday(date)) ? 1.5 : 0)
+                    )
+                    .frame(width: 38, height: 38)
+
+                Text(tagNummer)
+                    .font(.body.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(isSelected ? Color.white : Color.primary)
+            }
+
+            HStack(spacing: 4) {
+                if hasTraining {
+                    Circle()
+                        .fill(AppTheme.accent)
+                        .frame(width: 6, height: 6)
+                }
+                if hasCompetition {
+                    Circle()
+                        .fill(Color.orange)
+                        .frame(width: 6, height: 6)
+                }
+            }
+            .frame(height: 8)
+        }
+        .frame(maxWidth: .infinity, minHeight: 56)
+        .contentShape(Rectangle())
+        .highPriorityGesture(
+            TapGesture(count: 2)
+                .onEnded { onDoubleTap() }
+        )
+        .gesture(
+            TapGesture()
+                .onEnded { onSelect() }
+        )
+    }
+}
+
+private struct KalenderLegendePill: View {
+    let farbe: Color
+    let titel: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(farbe)
+                .frame(width: 8, height: 8)
+            Text(titel)
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 10)
+        .background(
+            Capsule(style: .continuous)
+                .fill(.ultraThinMaterial)
+        )
     }
 }
 
