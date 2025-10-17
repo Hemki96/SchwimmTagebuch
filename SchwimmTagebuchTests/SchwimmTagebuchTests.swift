@@ -261,4 +261,46 @@ final class SchwimmTagebuchTests: XCTestCase {
         let fileNames = try ZipArchive.fileNames(at: url)
         XCTAssertEqual(Set(fileNames), ["training.csv", "wettkaempfe.csv", "export.json"])
     }
+
+    func testKeineMergeKonfliktMarkerImProjekt() throws {
+        let fileManager = FileManager.default
+        var directoryURL = URL(fileURLWithPath: #filePath)
+        directoryURL.deleteLastPathComponent()
+
+        var projektGefunden = false
+
+        while directoryURL.pathComponents.count > 1 {
+            let projektDatei = directoryURL.appendingPathComponent("SchwimmTagebuch.xcodeproj").path
+            if fileManager.fileExists(atPath: projektDatei) {
+                projektGefunden = true
+                break
+            }
+            directoryURL.deleteLastPathComponent()
+        }
+
+        guard projektGefunden else {
+            return XCTFail("Projektwurzel konnte nicht gefunden werden")
+        }
+
+        let enumerator = fileManager.enumerator(
+            at: directoryURL,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        )
+
+        var konfliktDateien: [String] = []
+
+        while let element = enumerator?.nextObject() as? URL {
+            guard element.pathExtension == "swift" else { continue }
+            let inhalt = try String(contentsOf: element)
+            if inhalt.contains("<<<<<<<") {
+                konfliktDateien.append(element.path)
+            }
+        }
+
+        XCTAssertTrue(
+            konfliktDateien.isEmpty,
+            "Merge-Konflikt-Markierungen gefunden in: \(konfliktDateien.joined(separator: ", "))"
+        )
+    }
 }
